@@ -1,0 +1,15 @@
+# Third-party notices
+
+## Project code and assets
+
+除非文件另有说明，仓库中的源代码、文档和自有配置以根目录 [LICENSE](LICENSE) 中的 Apache License 2.0 发布。
+
+`design/画布交互稿.html` 是本项目的设计参考文件，不是外部项目的复制品。CSS 中提到的 `canvas.best` 和历史文档中提到的其他画布项目仅用于说明视觉/交互研究方向；本仓库不声明取得这些项目的代码、商标或资产授权，也不把它们作为运行时依赖。若未来引入外部代码或资产，必须在对应文件和本 NOTICE 中补充来源与许可证。
+
+## Dependencies
+
+JavaScript 依赖由 `package.json` / `package-lock.json` 管理，Rust 依赖由 `src-tauri/Cargo.toml` / `Cargo.lock` 管理。发布二进制包前，应根据实际打包清单生成完整的依赖许可证报告；本文件不替代依赖自身携带的许可证文本。
+
+## Product names
+
+“念头”和 `qpm-thoughtline` 是当前项目的产品/技术标识。其他产品名称仅用于描述兼容性或用户可选择的 AI 服务，不表示本项目与其存在背书或隶属关系。

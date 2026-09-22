@@ -1,0 +1,55 @@
+# 数据格式与兼容策略
+
+## JSON 备份
+
+当前导出格式：
+
+```json
+{
+  "format": "qpm-thoughtline-graph",
+  "version": 1,
+  "exported_at": "2026-09-22T00:00:00.000Z",
+  "tasks": [],
+  "nodes": [],
+  "edges": []
+}
+```
+
+`tasks`、`nodes` 和 `edges` 是完整快照。导入时按 ID 合并：任务和节点使用 `updated_at` 判断较新值，边按 ID 去重。导入内容会经过快照结构清理，非法记录和悬空边不会进入运行时状态。
+
+当前导入器也接受：
+
+- 无 `format` 字段的早期快照
+- `format: "qpm-box-graph"` 的旧备份
+- `format: "qpm-thoughtline-graph"` 的当前备份
+
+新导出只使用 `qpm-thoughtline-graph`，文件名为 `qpm-thoughtline-backup-<timestamp>.json`。
+
+## 浏览器存储
+
+当前 key：
+
+- `qpm-thoughtline-graph-v1`：快照
+- `qpm-thoughtline-last-export`：最近一次导出时间
+- `qpm-thoughtline-theme-v1`：主题
+
+首次读取时，如果新 key 不存在，应用会从旧 key 迁移：
+
+- `qpm-box-graph-v1`
+- `qpm-box-last-export`
+- `qp-theme`
+
+清空本地数据会同时删除新旧 key。迁移是复制到新 key，不会主动删除旧 key，以便旧版本仍能读取；用户确认新版本运行正常后可以手动清除旧站点数据。
+
+## Tauri 存储
+
+桌面路径使用 `sqlite:qpm-thoughtline.db`，数据库包含任务、画布节点、念头内容和边表。Tauri identifier 是 `app.qpm.thoughtline`，因此它是新应用身份，不承诺对旧 `app.qpm.box` 安装目录无感升级。
+
+旧桌面数据的可靠迁移方式是：在旧版本中导出 JSON，再在新版本设置页导入。直接复制旧 SQLite 文件不受支持。
+
+## 版本策略
+
+- 修改字段但仍能读取旧结构时，递增文档中的格式版本并保留读取兼容。
+- 删除字段或改变语义时，先提供迁移函数和测试夹具。
+- 不在没有备份/恢复说明的情况下更换 localStorage key 或 SQLite 文件名。
+- 导出格式是用户数据接口，不能因为内部 UI 重构而随意改名。

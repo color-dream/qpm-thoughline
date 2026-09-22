@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>念头 · qpm-thoughtline — 思维链画布交互稿</title>
+<style>
+  /* 纸感 — 陶土墨色 · 明/暗双主题 */
+  :root,
+  [data-theme="light"] {
+    --bg: #f3ede3;
+    --bg-2: #ebe4d6;
+    --panel: #e9e1d2;
+    --elev: #fffbf3;
+    --elev-2: #f0e8da;
+    --line: #d5c9b4;
+    --line-soft: #e2d8c6;
+    --text: #2a2218;
+    --text-2: #6b5e4e;
+    --text-3: #9a8b76;
+    --accent: #b85c38;
+    --accent-deep: #8f4528;
+    --accent-glow: rgba(184, 92, 56, 0.14);
+    --accent-soft: rgba(184, 92, 56, 0.1);
+    --ai: #4a6fa5;
+    --ai-soft: rgba(74, 111, 165, 0.1);
+    --warn: #a67c1a;
+    --danger: #b84a4a;
+    --on-accent: #fff8f1;
+    --grid-dot: #d9cdb8;
+    --shadow: 0 8px 28px rgba(62, 48, 30, 0.1);
+    --shadow-node: 0 4px 14px rgba(62, 48, 30, 0.08);
+    --scrim: rgba(62, 48, 30, 0.28);
+    --toolbar-bg: rgba(255, 251, 243, 0.92);
+    --capture-bg: rgba(255, 251, 243, 0.97);
+    --toast-bg: rgba(255, 251, 243, 0.97);
+  }
+
+  [data-theme="dark"] {
+    /* 对齐 infinite-canvas 暗色：中性 zinc，主按钮近白，侧栏强调靛蓝 */
+    --bg: #1f1f1f;
+    --bg-2: #252525;
+    --panel: #2a2a2a;
+    --elev: #2e2e2e;
+    --elev-2: #3a3a3a;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-soft: rgba(255, 255, 255, 0.06);
+    --text: #fafafa;
+    --text-2: #a8a8a8;
+    --text-3: #737373;
+    --accent: #5b6cfa;
+    --accent-deep: #4a5ae0;
+    --accent-glow: rgba(91, 108, 250, 0.2);
+    --accent-soft: rgba(91, 108, 250, 0.14);
+    --ai: #7dd3fc;
+    --ai-soft: rgba(125, 211, 252, 0.1);
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --on-accent: #0c0c0c;
+    --grid-dot: #2c2c2c;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    --shadow-node: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --scrim: rgba(0, 0, 0, 0.5);
+    --toolbar-bg: rgba(42, 42, 42, 0.92);
+    --capture-bg: rgba(46, 46, 46, 0.97);
+    --toast-bg: rgba(46, 46, 46, 0.97);
+  }
+
+  :root {
+    --font: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Code", Consolas, monospace;
+    --sidebar-w: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  /* ===== App shell ===== */
+  .app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: 48px 1fr 32px;
+    height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 14px;
+  }
+  .leaf {
+    width: 18px; height: 18px;
+    border-radius: 50% 6px 50% 6px;
+    background: linear-gradient(145deg, #e0a07a 0%, var(--accent) 50%, var(--accent-deep) 100%);
+    box-shadow: 0 0 10px var(--accent-glow);
+    flex-shrink: 0;
+  }
+  .brand span { color: var(--text-2); font-weight: 500; margin-left: 2px; }
+  .header-tabs { display: flex; gap: 4px; margin-left: 8px; }
+  .htab {
+    height: 28px; padding: 0 12px; border-radius: 6px;
+    font-size: 12px; color: var(--text-2); cursor: pointer;
+    border: none; background: transparent; font-family: var(--font);
+  }
+  .htab:hover { color: var(--text); }
+  .htab.active { background: var(--accent-soft); color: var(--accent); }
+  .header-right {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+  }
+  .kbd {
+    font-family: var(--mono); font-size: 10px; color: var(--text-3);
+    padding: 3px 7px; border-radius: 5px;
+    border: 1px solid var(--line); background: var(--bg-2);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--line-soft);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .side-head {
+    padding: 12px 12px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; letter-spacing: 0.06em; color: var(--text-3);
+  }
+  .task-list { flex: 1; overflow: auto; padding: 0 8px 12px; }
+  .task-item {
+    width: 100%; text-align: left;
+    padding: 10px 10px; margin-bottom: 6px;
+    border-radius: 10px; border: 1px solid transparent;
+    background: transparent; color: var(--text);
+    cursor: pointer; font-family: var(--font);
+  }
+  .task-item:hover { background: var(--elev); border-color: var(--line-soft); }
+  .task-item.active {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .task-item .t-name {
+    font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+  }
+  .task-item .t-meta {
+    font-size: 11px; color: var(--text-3); margin-top: 4px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .dot-run {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px var(--accent);
+  }
+  .badge {
+    font-size: 10px; color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 6px; border-radius: 999px;
+  }
+  .side-foot {
+    padding: 10px; border-top: 1px solid var(--line-soft);
+  }
+  .btn {
+    height: 32px; padding: 0 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent; font-family: var(--font);
+  }
+  .btn-block { width: 100%; }
+  .btn-ghost {
+    background: transparent; border-color: var(--line); color: var(--text-2);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-3); }
+  .btn-primary {
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  }
+  .btn-primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  [data-theme="dark"] .btn-primary {
+    background: #fafafa;
+    color: #2e2e2e;
+    border-color: #fafafa;
+  }
+  [data-theme="dark"] .btn-primary:hover {
+    background: #e4e4e7;
+    border-color: #e4e4e7;
+  }
+  .btn-sm { height: 28px; padding: 0 10px; font-size: 11px; border-radius: 6px; }
+
+  /* Main canvas area */
+  .main {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 80% 55% at 50% 35%, var(--accent-glow), transparent 62%),
+      var(--bg);
+  }
+
+  /* Grid dots — 纸面细点 */
+  .main::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.75;
+    pointer-events: none;
+  }
+
+  .viewport {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    cursor: grab;
+  }
+  .viewport.panning { cursor: grabbing; }
+  .world {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0;
+    transform-origin: 0 0;
+  }
+
+  /* Edges layer */
+  .edges {
+    position: absolute; left: 0; top: 0;
+    overflow: visible; pointer-events: none;
+  }
+  .edges path.edge {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1.5;
+  }
+  .edges path.edge.child {
+    stroke: color-mix(in srgb, var(--accent) 55%, var(--line));
+    stroke-width: 1.7;
+  }
+  .edges path.edge.related {
+    stroke: var(--text-3);
+    stroke-dasharray: 5 4;
+    opacity: 0.75;
+  }
+  .edges path.edge.preview {
+    stroke: var(--accent);
+    stroke-dasharray: 6 4;
+    stroke-width: 2;
+    opacity: 0.9;
+  }
+  .edges path.edge-hit {
+    fill: none; stroke: transparent; stroke-width: 12;
+    pointer-events: stroke; cursor: pointer;
+  }
+  .edges path.edge.selected { stroke: var(--accent); stroke-width: 2.2; }
+
+  /* Nodes — 纸片卡片 */
+  .node {
+    position: absolute;
+    width: 200px;
+    background: var(--elev);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 11px 13px;
+    cursor: default;
+    box-shadow: var(--shadow-node);
+  }
+  .node:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  .node.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-node);
+  }
+  .node.task {
+    width: 240px;
+    background: var(--elev);
+    border: 1.5px solid color-mix(in srgb, var(--accent) 50%, var(--line));
+    border-top: 2px solid var(--accent);
+    box-shadow: var(--shadow);
+  }
+  .node.ai {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--ai) 50%, var(--line));
+    background: color-mix(in srgb, var(--ai) 6%, var(--elev));
+  }
+  .node.free { opacity: 0.98; }
+  .node.pulse { animation: pulse 1s ease; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+    50% { box-shadow: 0 0 0 12px var(--accent-glow); }
+  }
+  .n-head {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+    font-size: 10px; color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+  .n-head .kind {
+    color: var(--accent); font-weight: 700;
+  }
+  .node.ai .n-head .kind { color: var(--ai); }
+  .n-title {
+    font-size: 13px; font-weight: 600; line-height: 1.4;
+    color: var(--text);
+  }
+  .n-body {
+    font-size: 12px; color: var(--text-2); line-height: 1.5;
+    margin-top: 4px;
+  }
+  .n-foot {
+    margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px; padding: 2px 6px; border-radius: 999px;
+    background: var(--elev-2); color: var(--text-3);
+  }
+  .tag.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  .tag.accent { color: var(--accent); background: var(--accent-soft); }
+
+  /* Ports */
+  .port {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--bg-2);
+    border: 2px solid var(--accent-deep);
+    cursor: crosshair;
+    opacity: 0;
+    transition: opacity 0.12s, transform 0.12s, background 0.12s;
+    z-index: 2;
+  }
+  .node:hover .port, .node.selected .port { opacity: 1; }
+  .port:hover { transform: scale(1.3); background: var(--accent); }
+  .port.t { top: -7px; left: calc(50% - 6px); }
+  .port.b { bottom: -7px; left: calc(50% - 6px); }
+  .port.l { left: -7px; top: calc(50% - 6px); }
+  .port.r { right: -7px; top: calc(50% - 6px); }
+
+  /* Toolbar */
+  .toolbar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 3px; align-items: center;
+    background: var(--toolbar-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 6px 8px;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+  }
+  .toolbar .sep { width: 1px; height: 16px; background: var(--line); margin: 0 5px; }
+  .tbtn {
+    height: 28px; padding: 0 11px; border-radius: 8px;
+    font-size: 11px; color: var(--text-2); cursor: pointer;
+    border: 1px solid transparent; background: transparent;
+    font-family: var(--font); display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tbtn:hover { background: var(--elev-2); color: var(--text); }
+  .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tbtn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Hint strip */
+  .hint {
+    position: absolute; left: 12px; bottom: 12px;
+    font-size: 11px; color: var(--text-3);
+    background: var(--toolbar-bg);
+    border: 1px solid var(--line-soft);
+    padding: 8px 10px; border-radius: 10px;
+    z-index: 8; max-width: 340px; line-height: 1.55;
+    backdrop-filter: blur(8px);
+  }
+  .hint b { color: var(--text-2); font-weight: 600; }
+
+  /* Minimap */
+  .minimap {
+    position: absolute; right: 12px; bottom: 12px;
+    width: 160px; height: 110px;
+    background: var(--toolbar-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    z-index: 8; overflow: hidden;
+    backdrop-filter: blur(8px);
+  }
+  .minimap .mm-node {
+    position: absolute; border-radius: 2px;
+    background: var(--line);
+  }
+  .minimap .mm-node.task { background: var(--accent); opacity: 0.85; }
+  .minimap .mm-node.ai { background: var(--ai); opacity: 0.85; }
+  .minimap .mm-view {
+    position: absolute; border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    pointer-events: none;
+  }
+  .minimap-label {
+    position: absolute; top: 4px; left: 6px;
+    font-size: 9px; color: var(--text-3); letter-spacing: 0.06em;
+  }
+
+  /* Status bar */
+  .statusbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 12px;
+    font-size: 11px; color: var(--text-3);
+    background: var(--panel);
+    border-top: 1px solid var(--line-soft);
+  }
+  .statusbar .sep { width: 1px; height: 12px; background: var(--line); }
+  .statusbar b { color: var(--text-2); font-weight: 600; }
+
+  /* Capture overlay */
+  .ov-backdrop {
+    position: fixed; inset: 0;
+    background: var(--scrim);
+    opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    z-index: 100;
+  }
+  .ov-backdrop.show { opacity: 1; pointer-events: auto; }
+  .capture {
+    position: fixed; top: 36%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.96);
+    width: min(440px, calc(100vw - 40px));
+    background: var(--capture-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+    border-top: 2px solid var(--accent);
+    border-radius: 14px;
+    box-shadow: var(--shadow), 0 0 48px var(--accent-glow);
+    backdrop-filter: blur(20px);
+    opacity: 0; pointer-events: none; transition: all 0.16s;
+    z-index: 110;
+  }
+  .capture.show {
+    opacity: 1; pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .cap-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px 0;
+  }
+  .cap-brand {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .cap-body { padding: 12px 14px 14px; }
+  .cap-body textarea {
+    width: 100%; height: 84px; resize: none;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px; color: var(--text);
+    font-size: 14px; line-height: 1.5; padding: 12px;
+    outline: none; font-family: var(--font);
+    user-select: text;
+  }
+  .cap-body textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 30px; padding: 0 12px; border-radius: 999px;
+    font-size: 12px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--elev); color: var(--text-2);
+  }
+  .chip.selected {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--accent);
+  }
+  .chip .pip { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .chip.muted .pip { background: var(--text-3); }
+  .cap-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 14px;
+  }
+  .cap-tip { font-size: 11px; color: var(--text-3); }
+
+  /* Toast */
+  .toast {
+    position: fixed; right: 20px; bottom: 48px;
+    background: var(--toast-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+    border-left: 3px solid var(--accent);
+    color: var(--text); padding: 12px 16px;
+    border-radius: 12px; font-size: 13px;
+    box-shadow: var(--shadow);
+    transform: translateY(12px); opacity: 0;
+    transition: all 0.2s; z-index: 120; max-width: 280px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast .t-sub { display: block; font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 130; display: none; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    width: min(520px, calc(100vw - 40px));
+    background: var(--elev); border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  }
+  .modal-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--line-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; font-weight: 600;
+  }
+  .modal-body { padding: 16px; }
+  .modal-body pre {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.6;
+    color: var(--text-2); white-space: pre-wrap; max-height: 240px;
+    overflow: auto; user-select: text;
+  }
+  .modal-foot {
+    padding: 12px 16px; border-top: 1px solid var(--line-soft);
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+
+  /* Empty pool / pool view overlay panel */
+  .pool-panel {
+    position: absolute; top: 56px; right: 12px;
+    width: 280px; max-height: 50%;
+    background: var(--toolbar-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px; z-index: 9;
+    display: none; flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+  }
+  .pool-panel.show { display: flex; }
+  .pool-head {
+    padding: 10px 12px; font-size: 12px; font-weight: 600;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text-2);
+  }
+  .pool-list { overflow: auto; padding: 8px; }
+  .pool-item {
+    padding: 10px; border-radius: 10px; margin-bottom: 6px;
+    background: var(--elev); border: 1px solid var(--line-soft);
+    font-size: 12px; color: var(--text); line-height: 1.45;
+    cursor: pointer;
+  }
+  .pool-item:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  .pool-item .meta { font-size: 10px; color: var(--text-3); margin-top: 4px; }
+
+  /* Box select */
+  .boxsel {
+    position: absolute; border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    pointer-events: none; z-index: 5; display: none;
+  }
+
+  .float-menu {
+    position: absolute; z-index: 20;
+    background: var(--capture-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px; padding: 4px;
+    display: none; flex-direction: column; min-width: 140px;
+    box-shadow: var(--shadow);
+  }
+  .float-menu.show { display: flex; }
+  .float-menu button {
+    text-align: left; height: 30px; padding: 0 10px;
+    font-size: 12px; color: var(--text-2); cursor: pointer;
+    border: none; background: transparent; border-radius: 6px;
+    font-family: var(--font);
+  }
+  .float-menu button:hover { background: var(--elev-2); color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <span class="leaf"></span>
+      念头 <span>· qpm-thoughtline</span>
+    </div>
+    <div class="header-tabs">
+      <button class="htab active">画布</button>
+      <button class="htab" onclick="togglePool()">想法池</button>
+      <button class="htab" onclick="showToast('设置', '演示稿中省略完整设置页')">设置</button>
+    </div>
+    <div class="header-right">
+      <button class="tbtn" id="themeBtn" onclick="toggleTheme()" title="切换明暗">明</button>
+      <span class="kbd">Ctrl+Shift+Space 捕获</span>
+      <button class="btn btn-sm btn-primary" onclick="openCapture()">记想法</button>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <span>任务</span>
+      <span style="color:var(--text-3)">2 进行中</span>
+    </div>
+    <div class="task-list" id="taskList"></div>
+    <div class="side-foot">
+      <button class="btn btn-ghost btn-block btn-sm" onclick="radialLayout()">整理布局</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="viewport" id="viewport">
+      <div class="world" id="world">
+        <svg class="edges" id="edges" width="10" height="10"></svg>
+        <div id="nodes"></div>
+      </div>
+      <div class="boxsel" id="boxsel"></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="tbtn" id="btnSelect" onclick="setMode('select')" title="选择/拖节点">选择</button>
+      <button class="tbtn" id="btnLink" onclick="setMode('link')" title="从节点把手拖到另一节点连边">连边</button>
+      <div class="sep"></div>
+      <button class="tbtn" onclick="zoomBy(1.15)">放大</button>
+      <button class="tbtn" onclick="zoomBy(1/1.15)">缩小</button>
+      <button class="tbtn" onclick="fitTask(state.focusTask)">适配任务</button>
+      <button class="tbtn" onclick="radialLayout()">放射整理</button>
+      <div class="sep"></div>
+      <button class="tbtn" id="btnFeed" onclick="feedSelected()">交给 AI</button>
+      <button class="tbtn" onclick="deleteSelection()">删除</button>
+    </div>
+
+    <div class="hint">
+      <b>画布手势</b>　空白拖拽平移 · 滚轮缩放 · 拖节点移动 · 点端口连边 · 双击空白新建 · 框选多选 · Delete 删除
+    </div>
+
+    <div class="minimap" id="minimap">
+      <div class="minimap-label">MAP</div>
+      <div class="mm-view" id="mmView"></div>
+    </div>
+
+    <div class="pool-panel" id="poolPanel">
+      <div class="pool-head">想法池 · 未关联节点</div>
+      <div class="pool-list" id="poolList"></div>
+    </div>
+
+    <div class="float-menu" id="ctxMenu">
+      <button onclick="ctxFeed()">交给 AI</button>
+      <button onclick="ctxCollapse()">折叠/展开子树</button>
+      <button onclick="deleteSelection()">删除节点</button>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span>缩放 <b id="stZoom">100%</b></span>
+    <div class="sep"></div>
+    <span>选中 <b id="stSel">0</b></span>
+    <div class="sep"></div>
+    <span>节点 <b id="stNodes">0</b></span>
+    <div class="sep"></div>
+    <span id="stHint">默认任务「重构登录」</span>
+  </footer>
+</div>
+
+<!-- Capture -->
+<div class="ov-backdrop" id="ovBackdrop" onclick="closeCapture()"></div>
+<div class="capture" id="capture">
+  <div class="cap-head">
+    <div class="cap-brand"><span class="leaf" style="width:14px;height:14px"></span>念头 · 快速捕获</div>
+    <span class="kbd">Enter 保存 · Esc 关闭</span>
+  </div>
+  <div class="cap-body">
+    <textarea id="thoughtInput" placeholder="记下闪过的念头…"></textarea>
+    <div class="chip-row" id="chipRow">
+      <span class="chip selected" data-task="login" onclick="selectChip(this)"><span class="pip"></span>重构登录</span>
+      <span class="chip" data-task="report" onclick="selectChip(this)"><span class="pip"></span>竞品调研</span>
+      <span class="chip muted" data-task="none" onclick="selectChip(this)"><span class="pip"></span>不关联</span>
+    </div>
+    <div class="cap-foot">
+      <span class="cap-tip">将落到画布并自动连到任务</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeCapture()">取消</button>
+        <button class="btn btn-primary" onclick="saveThought()">记下</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-backdrop" id="feedModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>交给 AI · 已生成</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeFeed()">关闭</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">已复制到剪贴板，切到 AI 窗口 Ctrl+V 粘贴。</p>
+      <pre id="feedText"></pre>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="closeFeed()">知道了</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Theme ===== */
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  const btn = document.getElementById("themeBtn");
+  if (btn) btn.textContent = t === "dark" ? "暗" : "明";
+  try { localStorage.setItem("qpm-thoughtline-theme-v1", t); } catch (e) {}
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute("data-theme") || "light";
+  applyTheme(cur === "dark" ? "light" : "dark");
+}
+(function initTheme() {
+  let t = null;
+  try { t = localStorage.getItem("qpm-thoughtline-theme-v1") || localStorage.getItem("qp-theme"); } catch (e) {}
+  if (!t && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) t = "dark";
+  applyTheme(t || "light");
+})();
+
+/* ================= State ================= */
+const state = {
+  nodes: [],
+  edges: [],
+  selection: new Set(),
+  selectedEdge: null,
+  mode: "select", // select | link
+  focusTask: "login",
+  cam: { x: 0, y: 0, k: 1 },
+  nextId: 100,
+  collapsed: new Set(),
+};
+
+function uid(p) { return p + "_" + (state.nextId++); }
+
+function seed() {
+  state.nodes = [
+    { id: "task_login", kind: "task", ref: "login", x: 80, y: 160, title: "重构登录模块",
+      body: "OAuth + 本地密码，兼容现有 session", status: "running", time: "09:30" },
+    { id: "th_login_1", kind: "thought", ref: "login", x: -40, y: -20, title: "任务前 · 约束",
+      body: "先兼容现有 session 格式，灰度期双写校验", time: "09:28", tag: "constraint" },
+    { id: "th_login_2", kind: "thought", ref: "login", x: 360, y: -40, title: "等待中 · OAuth",
+      body: "还要兼容第三方 OAuth，别只做密码登录", time: "11:05", tag: "idea", pending: true },
+    { id: "th_login_3", kind: "thought", ref: "login", x: 380, y: 120, title: "等待中 · 风控",
+      body: "别忘了设备指纹字段，风控要接", time: "11:18", tag: "idea", pending: true },
+    { id: "ai_login_1", kind: "ai", ref: "login", x: 200, y: 300, title: "AI 产出 · 阶段1-2",
+      body: "AuthProvider + LegacySession 适配层完成，单测通过", time: "11:12" },
+    { id: "task_report", kind: "task", ref: "report", x: 720, y: 80, title: "竞品调研报告",
+      body: "调研 5 个竞品的 AI 协作功能", status: "running", time: "10:05" },
+    { id: "th_report_1", kind: "thought", ref: "report", x: 980, y: 0, title: "任务前 · 范围",
+      body: "先做功能矩阵，再写机会点", time: "10:04", tag: "constraint" },
+    { id: "free_1", kind: "free", ref: null, x: 40, y: 480, title: "独立想法",
+      body: "下个季度要不要做一个播客？先记着", time: "11:40" },
+  ];
+  state.edges = [
+    { id: "e1", from: "task_login", to: "th_login_1", kind: "child" },
+    { id: "e2", from: "task_login", to: "th_login_2", kind: "child" },
+    { id: "e3", from: "task_login", to: "th_login_3", kind: "child" },
+    { id: "e4", from: "task_login", to: "ai_login_1", kind: "child" },
+    { id: "e5", from: "th_login_2", to: "th_login_3", kind: "related" },
+    { id: "e6", from: "task_report", to: "th_report_1", kind: "child" },
+  ];
+  state.selection.clear();
+  state.collapsed.clear();
+  state.nextId = 100;
+}
+
+/* ================= Camera ================= */
+const viewport = document.getElementById("viewport");
+const world = document.getElementById("world");
+
+function applyCam() {
+  const { x, y, k } = state.cam;
+  world.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
+  document.getElementById("stZoom").textContent = Math.round(k * 100) + "%";
+  drawMinimap();
+}
+
+function screenToWorld(sx, sy) {
+  const r = viewport.getBoundingClientRect();
+  const { x, y, k } = state.cam;
+  return { x: (sx - r.left - x) / k, y: (sy - r.top - y) / k };
+}
+
+function zoomBy(f, cx, cy) {
+  const r = viewport.getBoundingClientRect();
+  if (cx == null) cx = r.left + r.width / 2;
+  if (cy == null) cy = r.top + r.height / 2;
+  const k0 = state.cam.k;
+  const k1 = Math.min(2.5, Math.max(0.25, k0 * f));
+  const wx = (cx - r.left - state.cam.x) / k0;
+  const wy = (cy - r.top - state.cam.y) / k0;
+  state.cam.k = k1;
+  state.cam.x = cx - r.left - wx * k1;
+  state.cam.y = cy - r.top - wy * k1;
+  applyCam();
+}
+
+function fitBounds(nodes, pad = 60) {
+  if (!nodes.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    const w = n.kind === "task" ? 240 : 200;
+    const h = n.kind === "task" ? 100 : 88;
+    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + w); maxY = Math.max(maxY, n.y + h);
+  }
+  const r = viewport.getBoundingClientRect();
+  const bw = maxX - minX + pad * 2, bh = maxY - minY + pad * 2;
+  const k = Math.min(1.2, Math.max(0.35, Math.min(r.width / bw, r.height / bh)));
+  state.cam.k = k;
+  state.cam.x = r.width / 2 - (minX + (maxX - minX) / 2) * k;
+  state.cam.y = r.height / 2 - (minY + (maxY - minY) / 2) * k;
+  applyCam();
+}
+
+function fitTask(taskId) {
+  state.focusTask = taskId;
+  const list = visibleNodes().filter(n => n.ref === taskId || n.id === taskId || n.id === "task_" + taskId);
+  if (list.length) fitBounds(list, 80);
+  document.getElementById("stHint").textContent = "聚焦 · " + ((list[0] && list[0].title) || taskId);
+}
+
+function visibleNodes() {
+  // hide children of collapsed tasks
+  const hidden = new Set();
+  for (const cid of state.collapsed) {
+    const t = state.edges.filter(e => e.from === cid && e.kind === "child").map(e => e.to);
+    t.forEach(id => hidden.add(id));
+  }
+  return state.nodes.filter(n => !hidden.has(n.id));
+}
+
+/* ================= Render ================= */
+const nodesEl = document.getElementById("nodes");
+const edgesEl = document.getElementById("edges");
+
+function nodeSize(n) {
+  return n.kind === "task" ? { w: 240, h: 100 } : { w: 200, h: 88 };
+}
+
+function centerOf(n) {
+  const { w, h } = nodeSize(n);
+  return { x: n.x + w / 2, y: n.y + h / 2 };
+}
+
+function pathBetween(a, b) {
+  const ca = centerOf(a), cb = centerOf(b);
+  const dx = cb.x - ca.x, dy = cb.y - ca.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const { w: wa, h: ha } = nodeSize(a);
+  const { w: wb, h: hb } = nodeSize(b);
+  // exit/entry on bounding boxes
+  function edgePoint(c, w, h, dirx, diry) {
+    const sx = dirx === 0 ? 0 : (w / 2 + 8) / Math.abs(dirx);
+    const sy = diry === 0 ? 0 : (h / 2 + 8) / Math.abs(diry);
+    const s = Math.min(sx || 1e9, sy || 1e9);
+    return { x: c.x + dirx * s, y: c.y + diry * s };
+  }
+  const p1 = edgePoint(ca, wa, ha, dx / dist, dy / dist);
+  const p2 = edgePoint(cb, wb, hb, -dx / dist, -dy / dist);
+  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+  const curve = Math.min(40, dist * 0.2);
+  const c1x = p1.x + dx * 0.25, c1y = p1.y + dy * 0.25 - curve * (dy === 0 ? 1 : 0);
+  // simple cubic toward mid
+  return `M ${p1.x} ${p1.y} Q ${mx} ${my} ${p2.x} ${p2.y}`;
+}
+
+function render() {
+  const vis = visibleNodes();
+  const visIds = new Set(vis.map(n => n.id));
+
+  // nodes
+  nodesEl.innerHTML = vis.map(n => {
+    const sel = state.selection.has(n.id);
+    const kindLabel = n.kind === "task" ? "任务" : n.kind === "ai" ? "AI 产出" : n.kind === "free" ? "独立" : "想法";
+    const pending = n.pending ? `<span class="tag warn">未读</span>` : "";
+    const collapsed = state.collapsed.has(n.id) ? `<span class="tag accent">已折叠</span>` : "";
+    return `<div class="node ${n.kind} ${sel ? "selected" : ""}" data-id="${n.id}"
+      style="left:${n.x}px;top:${n.y}px">
+      <div class="port t" data-port="t" data-id="${n.id}"></div>
+      <div class="port b" data-port="b" data-id="${n.id}"></div>
+      <div class="port l" data-port="l" data-id="${n.id}"></div>
+      <div class="port r" data-port="r" data-id="${n.id}"></div>
+      <div class="n-head"><span class="kind">${kindLabel}</span><span>${n.time || ""}</span></div>
+      <div class="n-title">${esc(n.title)}</div>
+      <div class="n-body">${esc(n.body || "")}</div>
+      <div class="n-foot">${pending}${collapsed}${n.status ? `<span class="tag accent">进行中</span>` : ""}</div>
+    </div>`;
+  }).join("");
+
+  // edges
+  const paths = state.edges
+    .filter(e => visIds.has(e.from) && visIds.has(e.to))
+    .map(e => {
+      const a = state.nodes.find(n => n.id === e.from);
+      const b = state.nodes.find(n => n.id === e.to);
+      if (!a || !b) return "";
+      const d = pathBetween(a, b);
+      const sel = state.selectedEdge === e.id;
+      return `
+        <path class="edge-hit" d="${d}" data-edge="${e.id}"></path>
+        <path class="edge ${e.kind} ${sel ? "selected" : ""}" d="${d}"></path>`;
+    }).join("");
+  edgesEl.innerHTML = paths;
+
+  document.getElementById("stSel").textContent = state.selection.size;
+  document.getElementById("stNodes").textContent = vis.length;
+  documentMinimap();
+  renderTaskList();
+  renderPool();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderTaskList() {
+  const tasks = state.nodes.filter(n => n.kind === "task");
+  document.getElementById("taskList").innerHTML = tasks.map(t => {
+    const kids = state.edges.filter(e => e.from === t.id && e.kind === "child").length;
+    const pending = state.edges.filter(e => e.from === t.id && e.kind === "child")
+      .map(e => state.nodes.find(n => n.id === e.to))
+      .filter(n => n && n.pending).length;
+    return `<button class="task-item ${state.focusTask === t.ref ? "active" : ""}" onclick="fitTask('${t.ref}')">
+      <div class="t-name"><span class="dot-run"></span>${esc(t.title)}</div>
+      <div class="t-meta"><span>${kids} 节点</span>${pending ? `<span class="badge">${pending} 未读</span>` : ""}</div>
+    </button>`;
+  }).join("");
+}
+
+function renderPool() {
+  const free = state.nodes.filter(n => n.kind === "free");
+  const el = document.getElementById("poolList");
+  if (!free.length) {
+    el.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--text-3)">暂无未关联想法</div>`;
+    return;
+  }
+  el.innerHTML = free.map(n => `
+    <div class="pool-item" onclick="focusNode('${n.id}')">
+      ${esc(n.body || n.title)}
+      <div class="meta">在画布中定位 →</div>
+    </div>`).join("");
+}
+
+function documentMinimap() {
+  const vis = visibleNodes();
+  const mm = document.getElementById("minimap");
+  mm.querySelectorAll(".mm-node").forEach(x => x.remove());
+  if (!vis.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  vis.forEach(n => {
+    const { w, h } = nodeSize(n);
+    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + w); maxY = Math.max(maxY, n.y + h);
+  });
+  const pad = 40;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const W = 160, H = 110;
+  const sx = W / (maxX - minX), sy = H / (maxY - minY);
+  const s = Math.min(sx, sy);
+  vis.forEach(n => {
+    const { w, h } = nodeSize(n);
+    const d = document.createElement("div");
+    d.className = "mm-node " + n.kind;
+    d.style.left = ((n.x - minX) * s) + "px";
+    d.style.top = ((n.y - minY) * s) + "px";
+    d.style.width = Math.max(3, w * s) + "px";
+    d.style.height = Math.max(2, h * s) + "px";
+    mm.appendChild(d);
+  });
+  // view rect
+  const r = viewport.getBoundingClientRect();
+  const { x, y, k } = state.cam;
+  const vx = (-x / k - minX) * s, vy = (-y / k - minY) * s;
+  const vw = (r.width / k) * s, vh = (r.height / k) * s;
+  const view = document.getElementById("mmView");
+  view.style.left = vx + "px"; view.style.top = vy + "px";
+  view.style.width = vw + "px"; view.style.height = vh + "px";
+}
+
+/* ================= Interaction ================= */
+let drag = null; // {type, ...}
+
+viewport.addEventListener("mousedown", (e) => {
+  if (e.button === 1 || e.button === 0) {
+    const port = e.target.closest(".port");
+    const node = e.target.closest(".node");
+    const edgeHit = e.target.closest("[data-edge]");
+
+    if (port) {
+      e.preventDefault(); e.stopPropagation();
+      drag = { type: "link", from: port.dataset.id, x: e.clientX, y: e.clientY };
+      return;
+    }
+    if (edgeHit) {
+      state.selectedEdge = edgeHit.dataset.edge;
+      state.selection.clear();
+      render();
+      return;
+    }
+    if (node && state.mode === "select") {
+      const id = node.dataset.id;
+      if (e.shiftKey) {
+        if (state.selection.has(id)) state.selection.delete(id);
+        else state.selection.add(id);
+      } else if (!state.selection.has(id)) {
+        state.selection.clear();
+        state.selection.add(id);
+      }
+      const starts = [...state.selection].map(sid => {
+        const n = state.nodes.find(x => x.id === sid);
+        return n ? { id: sid, ox: n.x, oy: n.y } : null;
+      }).filter(Boolean);
+      drag = { type: "node", starts, sx: e.clientX, sy: e.clientY };
+      render();
+      return;
+    }
+    // empty: pan or box select
+    if (e.shiftKey) {
+      const r = viewport.getBoundingClientRect();
+      drag = { type: "box", sx: e.clientX, sy: e.clientY, x0: e.clientX - r.left, y0: e.clientY - r.top };
+    } else {
+      drag = { type: "pan", sx: e.clientX, sy: e.clientY, cx: state.cam.x, cy: state.cam.y };
+      viewport.classList.add("panning");
+      state.selection.clear();
+      state.selectedEdge = null;
+      render();
+    }
+  }
+  if (e.button === 2) {
+    const node = e.target.closest(".node");
+    if (node) {
+      e.preventDefault();
+      state.selection.clear();
+      state.selection.add(node.dataset.id);
+      render();
+      const menu = document.getElementById("ctxMenu");
+      menu.style.left = e.offsetX + "px";
+      // use client coords relative to main
+      const main = document.querySelector(".main").getBoundingClientRect();
+      menu.style.left = (e.clientX - main.left) + "px";
+      menu.style.top = (e.clientY - main.top) + "px";
+      menu.classList.add("show");
+    }
+  }
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const { k } = state.cam;
+  if (drag.type === "pan") {
+    state.cam.x = drag.cx + (e.clientX - drag.sx);
+    state.cam.y = drag.cy + (e.clientY - drag.sy);
+    applyCam();
+  } else if (drag.type === "node") {
+    const dx = (e.clientX - drag.sx) / k;
+    const dy = (e.clientY - drag.sy) / k;
+    drag.starts.forEach(s => {
+      const n = state.nodes.find(x => x.id === s.id);
+      if (n) { n.x = s.ox + dx; n.y = s.oy + dy; }
+    });
+    render();
+  } else if (drag.type === "link") {
+    // preview edge
+    const from = state.nodes.find(n => n.id === drag.from);
+    if (!from) return;
+    const w = screenToWorld(e.clientX, e.clientY);
+    const ca = centerOf(from);
+    edgesEl.querySelectorAll(".preview").forEach(p => p.remove());
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("class", "edge preview");
+    path.setAttribute("d", `M ${ca.x} ${ca.y} L ${w.x} ${w.y}`);
+    edgesEl.appendChild(path);
+  } else if (drag.type === "box") {
+    const r = viewport.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const box = document.getElementById("boxsel");
+    box.style.display = "block";
+    box.style.left = Math.min(x, drag.x0) + "px";
+    box.style.top = Math.min(y, drag.y0) + "px";
+    box.style.width = Math.abs(x - drag.x0) + "px";
+    box.style.height = Math.abs(y - drag.y0) + "px";
+  }
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (!drag) return;
+  if (drag.type === "link") {
+    edgesEl.querySelectorAll(".preview").forEach(p => p.remove());
+    const port = e.target.closest?.(".port") || e.target.closest?.(".node");
+    const targetId = port && (port.dataset.id || port.closest(".node")?.dataset.id);
+    if (targetId && targetId !== drag.from) {
+      const exists = state.edges.some(x =>
+        (x.from === drag.from && x.to === targetId) || (x.from === targetId && x.to === drag.from));
+      if (!exists) {
+        const fromN = state.nodes.find(n => n.id === drag.from);
+        const toN = state.nodes.find(n => n.id === targetId);
+        let kind = "related";
+        if (fromN && toN) {
+          if (fromN.kind === "task" || toN.kind === "task") kind = "child";
+          // orient task as from
+          if (toN.kind === "task" && fromN.kind !== "task") {
+            state.edges.push({ id: uid("e"), from: toN.id, to: fromN.id, kind });
+          } else {
+            state.edges.push({ id: uid("e"), from: drag.from, to: targetId, kind });
+          }
+        }
+        showToast("已连线", kind === "child" ? "child · 归属任务" : "related · 相关想法");
+      }
+    }
+  } else if (drag.type === "box") {
+    const box = document.getElementById("boxsel");
+    const br = box.getBoundingClientRect();
+    box.style.display = "none";
+    if (br.width > 4 || br.height > 4) {
+      state.selection.clear();
+      visibleNodes().forEach(n => {
+        const el = nodesEl.querySelector(`[data-id="${n.id}"]`);
+        if (!el) return;
+        const nr = el.getBoundingClientRect();
+        if (!(nr.right < br.left || nr.left > br.right || nr.bottom < br.top || nr.top > br.bottom)) {
+          state.selection.add(n.id);
+        }
+      });
+      render();
+    }
+  }
+  viewport.classList.remove("panning");
+  drag = null;
+});
+
+viewport.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const f = e.deltaY > 0 ? 1 / 1.08 : 1.08;
+  zoomBy(f, e.clientX, e.clientY);
+}, { passive: false });
+
+viewport.addEventListener("dblclick", (e) => {
+  if (e.target.closest(".node") || e.target.closest(".toolbar")) return;
+  const w = screenToWorld(e.clientX, e.clientY);
+  const id = uid("th");
+  const nid = id;
+  state.nodes.push({
+    id: nid, kind: "free", ref: null,
+    x: w.x - 100, y: w.y - 40,
+    title: "新想法", body: "双击节点编辑（演示：直接展示）",
+    time: nowHM(),
+  });
+  // if near a task, could auto-link — keep free for double-click
+  render();
+  showToast("已新建节点", "可拖端口连到任务");
+  setTimeout(() => pulse(nid), 50);
+});
+
+function pulse(id) {
+  const el = nodesEl.querySelector(`[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.add("pulse");
+  setTimeout(() => el.classList.remove("pulse"), 1000);
+}
+
+function focusNode(id) {
+  const n = state.nodes.find(x => x.id === id);
+  if (!n) return;
+  state.selection.clear();
+  state.selection.add(id);
+  const { w, h } = nodeSize(n);
+  const r = viewport.getBoundingClientRect();
+  const k = state.cam.k;
+  state.cam.x = r.width / 2 - (n.x + w / 2) * k;
+  state.cam.y = r.height / 2 - (n.y + h / 2) * k;
+  applyCam();
+  render();
+  pulse(id);
+}
+
+/* Keyboard */
+document.addEventListener("keydown", (e) => {
+  const capOpen = document.getElementById("capture").classList.contains("show");
+  if ((e.ctrlKey || e.metaKey) && e.code === "Space") {
+    e.preventDefault(); openCapture(); return;
+  }
+  if (e.key === "Escape") {
+    if (document.getElementById("feedModal").classList.contains("show")) closeFeed();
+    else if (capOpen) closeCapture();
+    else {
+      document.getElementById("ctxMenu").classList.remove("show");
+      state.selection.clear(); state.selectedEdge = null; setMode("select"); render();
+    }
+    return;
+  }
+  if (capOpen && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveThought(); return; }
+  if (capOpen && e.key === "Tab") {
+    e.preventDefault();
+    const chips = [...document.querySelectorAll("#chipRow .chip")];
+    const i = chips.findIndex(c => c.classList.contains("selected"));
+    selectChip(chips[(i + 1) % chips.length]);
+    return;
+  }
+  if (!capOpen && (e.key === "Delete" || e.key === "Backspace")) {
+    e.preventDefault(); deleteSelection();
+  }
+  if (!capOpen && e.key === "1") setMode("select");
+  if (!capOpen && e.key === "2") setMode("link");
+});
+
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("ctxMenu");
+  if (!e.target.closest(".float-menu") && !e.target.closest(".node")) menu.classList.remove("show");
+});
+
+/* ================= Modes / actions ================= */
+function setMode(m) {
+  state.mode = m;
+  document.getElementById("btnSelect").classList.toggle("active", m === "select");
+  document.getElementById("btnLink").classList.toggle("active", m === "link");
+  document.getElementById("stHint").textContent = m === "link" ? "连边模式：从端口拖到另一节点" : "选择模式";
+}
+
+function deleteSelection() {
+  if (state.selectedEdge) {
+    state.edges = state.edges.filter(e => e.id !== state.selectedEdge);
+    state.selectedEdge = null;
+    render(); showToast("已删除连线");
+    return;
+  }
+  const ids = new Set(state.selection);
+  if (!ids.size) return;
+  state.nodes = state.nodes.filter(n => !ids.has(n.id));
+  state.edges = state.edges.filter(e => !ids.has(e.from) && !ids.has(e.to));
+  state.selection.clear();
+  render();
+  showToast("已删除 " + ids.size + " 个节点");
+}
+
+function radialLayout() {
+  const tasks = state.nodes.filter(n => n.kind === "task");
+  tasks.forEach((task, ti) => {
+    const ox = task.x + 120, oy = task.y + 50;
+    const kids = state.edges.filter(e => e.from === task.id && e.kind === "child")
+      .map(e => state.nodes.find(n => n.id === e.to))
+      .filter(Boolean);
+    kids.forEach((c, i) => {
+      const ang = (Math.PI * 2 * i) / Math.max(kids.length, 1) - Math.PI / 2;
+      const R = 220;
+      c.x = ox + Math.cos(ang) * R - 100;
+      c.y = oy + Math.sin(ang) * R - 44;
+    });
+  });
+  // free nodes bottom-left
+  state.nodes.filter(n => n.kind === "free").forEach((n, i) => {
+    n.x = 20 + i * 220;
+    n.y = 520;
+  });
+  render();
+  fitTask(state.focusTask);
+  showToast("已放射整理", "以任务为圆心排列子节点");
+}
+
+function feedSelected() {
+  let sel = [...state.selection].map(id => state.nodes.find(n => n.id === id)).filter(Boolean);
+  if (!sel.length) {
+    // default: pending thoughts of focus task
+    sel = state.nodes.filter(n => n.pending && n.ref === state.focusTask);
+  }
+  const thoughts = sel.filter(n => n.kind === "thought" || n.kind === "free");
+  if (!thoughts.length) {
+    showToast("未选中想法节点", "请先选中要交给 AI 的节点");
+    return;
+  }
+  const task = state.nodes.find(n => n.kind === "task" && n.ref === state.focusTask)
+    || state.nodes.find(n => n.kind === "task");
+  const text = [
+    `【任务】${task ? task.title : "（无任务）"}`,
+    `【原始目标】${task ? task.body : ""}`,
+    `【请你补充处理以下新想法】`,
+    ...thoughts.map((t, i) => `${i + 1}. ${t.body || t.title}`),
+    `请基于以上更新你的方案/代码/文档，先确认你理解了新想法，再执行。`,
+  ].join("\n");
+  document.getElementById("feedText").textContent = text;
+  document.getElementById("feedModal").classList.add("show");
+  if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function ctxFeed() { document.getElementById("ctxMenu").classList.remove("show"); feedSelected(); }
+function ctxCollapse() {
+  document.getElementById("ctxMenu").classList.remove("show");
+  const id = [...state.selection][0];
+  if (!id) return;
+  if (state.collapsed.has(id)) state.collapsed.delete(id);
+  else state.collapsed.add(id);
+  render();
+}
+function closeFeed() { document.getElementById("feedModal").classList.remove("show"); }
+
+function togglePool() {
+  document.getElementById("poolPanel").classList.toggle("show");
+}
+
+/* ================= Capture ================= */
+let selectedChip = "login";
+function selectChip(el) {
+  document.querySelectorAll("#chipRow .chip").forEach(c => c.classList.remove("selected"));
+  el.classList.add("selected");
+  selectedChip = el.dataset.task;
+}
+function openCapture() {
+  document.getElementById("capture").classList.add("show");
+  document.getElementById("ovBackdrop").classList.add("show");
+  const ta = document.getElementById("thoughtInput");
+  ta.value = ""; ta.focus();
+}
+function closeCapture() {
+  document.getElementById("capture").classList.remove("show");
+  document.getElementById("ovBackdrop").classList.remove("show");
+}
+function saveThought() {
+  const ta = document.getElementById("thoughtInput");
+  const text = ta.value.trim();
+  if (!text) { ta.focus(); ta.placeholder = "先写点什么…"; return; }
+  const id = uid("th");
+  if (selectedChip === "none") {
+    state.nodes.push({
+      id, kind: "free", ref: null, x: 60, y: 520,
+      title: "独立想法", body: text, time: nowHM(),
+    });
+    showToast("已记入 · 想法池", text.slice(0, 36));
+  } else {
+    const task = state.nodes.find(n => n.kind === "task" && n.ref === selectedChip);
+    const base = task || { x: 0, y: 0 };
+    // place near task
+    const kids = state.edges.filter(e => task && e.from === task.id).length;
+    const ang = -Math.PI / 3 + kids * 0.7;
+    const R = 200;
+    const cx = base.x + 120 + Math.cos(ang) * R - 100;
+    const cy = base.y + 50 + Math.sin(ang) * R - 40;
+    state.nodes.push({
+      id, kind: "thought", ref: selectedChip,
+      x: cx, y: cy,
+      title: "等待中 · 新想法", body: text, time: nowHM(),
+      tag: "idea", pending: true,
+    });
+    if (task) {
+      state.edges.push({ id: uid("e"), from: task.id, to: id, kind: "child" });
+    }
+    showToast("已记入 · " + (task ? task.title : selectedChip), text.slice(0, 36));
+    state.focusTask = selectedChip;
+  }
+  closeCapture();
+  render();
+  pulse(id);
+  // open canvas app is already visible in this demo
+}
+
+function nowHM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+/* Toast */
+let toastTimer = null;
+function showToast(title, sub) {
+  const el = document.getElementById("toast");
+  el.innerHTML = esc(title) + (sub ? `<span class="t-sub">${esc(sub)}</span>` : "");
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+/* Init */
+setMode("select");
+seed();
+// center camera on login task
+requestAnimationFrame(() => {
+  fitTask("login");
+  showToast("思维链画布", "拖节点 · 端口连边 · Ctrl+Shift+Space 捕获");
+});
+</script>
+</body>
+</html>

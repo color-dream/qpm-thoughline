@@ -1,0 +1,154 @@
+/* 念头 · 视觉基线参考 canvas.best（仅作视觉灵感，不复制其代码或资产）
+   dark: canvas #181715 / node #292524 / panel #1f1d1a / stroke #44403c / active #fafaf9
+   light: canvas #f4f2ed / panel #fbfaf7 / node #e7e5df / stroke #d6d3ca / active #1c1917 */
+:root,
+[data-theme="light"] {
+  --bg: #f4f2ed;
+  --bg-2: #ece9e2;
+  --panel: #fbfaf7;
+  --elev: #e7e5df;
+  --elev-2: #dedbd3;
+  --line: #d6d3ca;
+  --line-soft: rgba(68, 64, 60, 0.1);
+  --text: #292524;
+  --text-2: #57534e;
+  --text-3: #78716c;
+  --faint: #a8a29e;
+  --accent: #1c1917;
+  --accent-deep: #000000;
+  --accent-glow: rgba(28, 25, 23, 0.12);
+  --accent-soft: rgba(28, 25, 23, 0.06);
+  --ai: #57534e;
+  --warn: #a67c1a;
+  --danger: #b84a4a;
+  /* sage green tuned into the warm stone palette (progress: doing) */
+  --ok: #6f8f6a;
+  --ok-soft: rgba(111, 143, 106, 0.14);
+  --on-accent: #fbfaf7;
+  --grid-dot: rgba(68, 64, 60, 0.28);
+  --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-node: 0 0 0 1px rgba(120, 113, 108, 0.33), 0 18px 48px rgba(0, 0, 0, 0.14);
+  --shadow-pop: 0 18px 54px rgba(28, 25, 23, 0.16);
+  --scrim: rgba(28, 25, 23, 0.32);
+  --toolbar-bg: rgba(251, 250, 247, 0.96);
+  --capture-bg: rgba(251, 250, 247, 0.98);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #181715;
+  --bg-2: #1f1d1a;
+  --panel: #1f1d1a;
+  --elev: #292524;
+  --elev-2: #3a3631;
+  --line: #44403c;
+  --line-soft: rgba(245, 245, 244, 0.1);
+  --text: #f5f5f4;
+  --text-2: #d6d3d1;
+  --text-3: #a8a29e;
+  --faint: #78716c;
+  --accent: #fafaf9;
+  --accent-deep: #e7e5e4;
+  --accent-glow: rgba(250, 250, 249, 0.14);
+  --accent-soft: rgba(250, 250, 249, 0.1);
+  --ai: #d6d3d1;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --ok: #8fae88;
+  --ok-soft: rgba(143, 174, 136, 0.16);
+  --on-accent: #292524;
+  --grid-dot: rgba(245, 245, 244, 0.24);
+  --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-node: 0 0 0 1px rgba(120, 113, 108, 0.33), 0 18px 48px rgba(0, 0, 0, 0.14);
+  --shadow-pop: 0 18px 54px rgba(28, 25, 23, 0.16);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --toolbar-bg: rgba(31, 29, 26, 0.96);
+  --capture-bg: rgba(31, 29, 26, 0.98);
+  color-scheme: dark;
+}
+
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  --mono: "Cascadia Code", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text-2);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+.btn:focus-visible,
+.htab:focus-visible,
+.tbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+
+.kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
