@@ -24,6 +24,16 @@ npm run build
 - 部署域名变化时，迁移说明仍然可执行；
 - 不把 `dist/` 或用户数据提交回源码仓库。
 
+## GitHub Pages 发布
+
+推送到 `main` 或手动触发会运行 [deploy-pages.yml](../.github/workflows/deploy-pages.yml)：构建通过测试与类型检查后，把 `dist/` 发布到 GitHub Pages（部署 workflow 内已生成 `.nojekyll`）。
+
+- 项目页地址为 `https://<owner>.github.io/<repo>/`，构建时通过环境变量 `BASE_PATH=/<repo>/` 注入 Vite base；`vite.config.ts` 会校验其格式。
+- 若部署到用户/组织主页仓库（`<owner>.github.io`）或自定义域名，请删除该 workflow 中的 `BASE_PATH` 行，让 base 保持默认 `/`。
+- 首次启用需要在仓库 Settings → Pages 把 Source 设为 **GitHub Actions**；若 CI 中的自动启用因权限失败，请手动设置后重跑。
+- 本地模拟子路径构建（Git Bash 需禁用路径转换）：`MSYS_NO_PATHCONV=1 BASE_PATH=/qpm-thoughtline/ npm run build`。
+- Pages 只是静态托管，没有后端；数据仍保存在访问者浏览器的 localStorage，不同域名/Pages origin 之间不共享。
+
 ## Tauri 发布
 
 Tauri 是可选实验路径。发布桌面包前需要在目标平台安装 Rust、系统编译工具和 WebView 依赖，并运行：

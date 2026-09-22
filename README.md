@@ -62,7 +62,7 @@ npm run build
 npm run preview
 ```
 
-构建结果在 `dist/`，可以由任意静态站点托管。也可以使用 Docker：
+构建结果在 `dist/`，可以由任意静态站点托管。推送到 `main` 会自动部署到 GitHub Pages（配置见 [docs/release.md](docs/release.md)），也可以使用 Docker：
 
 ```bash
 docker build -t qpm-thoughtline:local .
