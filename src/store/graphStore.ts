@@ -225,20 +225,35 @@ export const useGraph = create<GraphState>((set, get) => ({
   },
 
   removeSelection: async () => {
-    const { selection, selectedEdge, edges } = get();
+    const { selection, selectedEdge } = get();
     if (selectedEdge) {
       await deleteEdge(selectedEdge);
       set({
-        edges: edges.filter((e) => e.id !== selectedEdge),
+        edges: get().edges.filter((e) => e.id !== selectedEdge),
         selectedEdge: null,
       });
       return;
     }
     const ids = [...selection];
     if (!ids.length) return;
-    await deleteNodes(ids);
-    await get().reload();
-    set({ selection: new Set() });
+
+    const selectedNodes = ids
+      .map((id) => get().nodes.find((n) => n.id === id))
+      .filter((n): n is GraphNode => !!n);
+    const taskIds = selectedNodes
+      .filter((n) => n.kind === "task" && n.ref_id)
+      .map((n) => n.ref_id as string);
+
+    for (const taskId of taskIds) {
+      await get().deleteTask(taskId);
+    }
+
+    const remainingIds = ids.filter((id) => get().nodes.some((n) => n.id === id));
+    for (const id of remainingIds) {
+      await get().deleteNodeById(id);
+    }
+
+    set({ selection: new Set(), selectedEdge: null });
   },
 
   removeEdge: async (id) => {
@@ -511,35 +526,70 @@ export const useGraph = create<GraphState>((set, get) => ({
 
   /** 删除任务:任务节点 + 整棵子树(想法/AI 产出)+ 任务行 */
   deleteTask: async (taskId) => {
-    const st = get();
-    const taskNode = st.nodes.find((n) => n.kind === "task" && n.ref_id === taskId);
-    // collect full subtree: task node + direct children (thought/ai)
-    const childIds = taskNode
-      ? st.edges
-          .filter((e) => e.source_id === taskNode.id && e.kind === "child")
-          .map((e) => e.target_id)
-      : [];
-    const subtreeIds = taskNode ? [taskNode.id, ...childIds] : [];
-    if (subtreeIds.length) await deleteNodes(subtreeIds);
+    const before = get();
+    const taskNode = before.nodes.find((n) => n.kind === "task" && n.ref_id === taskId);
+    const subtreeIds = new Set<string>();
+    if (taskNode) {
+      const pending = [taskNode.id];
+      while (pending.length) {
+        const id = pending.pop()!;
+        if (subtreeIds.has(id)) continue;
+        subtreeIds.add(id);
+        for (const edge of before.edges) {
+          if (edge.source_id === id && edge.kind === "child" && !subtreeIds.has(edge.target_id)) {
+            pending.push(edge.target_id);
+          }
+        }
+      }
+      await deleteNodes([...subtreeIds]);
+    }
     const { deleteTaskRow } = await import("../shared/store");
     await deleteTaskRow(taskId);
+
+    const after = get();
+    const removedIds = subtreeIds;
+    const selectedEdge = after.selectedEdge
+      ? after.edges.find((e) => e.id === after.selectedEdge)
+      : undefined;
     set({
-      tasks: st.tasks.filter((t) => t.id !== taskId),
-      nodes: st.nodes.filter((n) => !subtreeIds.includes(n.id)),
-      edges: st.edges.filter(
-        (e) => !subtreeIds.includes(e.source_id) && !subtreeIds.includes(e.target_id),
-      ),
-      focusTask: st.focusTask === taskId ? null : st.focusTask,
-      selection: new Set(),
+      tasks: after.tasks.filter((t) => t.id !== taskId),
+      nodes: after.nodes.filter((n) => !removedIds.has(n.id)),
+      edges: after.edges.filter((e) => !removedIds.has(e.source_id) && !removedIds.has(e.target_id)),
+      collapsed: new Set([...after.collapsed].filter((id) => !removedIds.has(id))),
+      focusTask: after.focusTask === taskId ? null : after.focusTask,
+      notificationTaskId: after.notificationTaskId === taskId ? null : after.notificationTaskId,
+      sequenceFromNodeId:
+        after.sequenceFromNodeId && removedIds.has(after.sequenceFromNodeId)
+          ? null
+          : after.sequenceFromNodeId,
+      selection: new Set([...after.selection].filter((id) => !removedIds.has(id))),
+      selectedEdge:
+        selectedEdge &&
+        !removedIds.has(selectedEdge.source_id) &&
+        !removedIds.has(selectedEdge.target_id)
+          ? after.selectedEdge
+          : null,
     });
   },
 
-  /** 删除单个节点(级联边/想法内容),不动选中态 */
+  /** 删除单个节点(级联边/想法内容) */
   deleteNodeById: async (nodeId) => {
+    const before = get();
+    const removedSelectedEdge = before.selectedEdge
+      ? before.edges.some(
+          (e) =>
+            e.id === before.selectedEdge && (e.source_id === nodeId || e.target_id === nodeId),
+        )
+      : false;
     await deleteNodes([nodeId]);
+    const after = get();
     set({
-      nodes: get().nodes.filter((n) => n.id !== nodeId),
-      edges: get().edges.filter((e) => e.source_id !== nodeId && e.target_id !== nodeId),
+      nodes: after.nodes.filter((n) => n.id !== nodeId),
+      edges: after.edges.filter((e) => e.source_id !== nodeId && e.target_id !== nodeId),
+      collapsed: new Set([...after.collapsed].filter((id) => id !== nodeId)),
+      selection: new Set([...after.selection].filter((id) => id !== nodeId)),
+      selectedEdge: removedSelectedEdge ? null : after.selectedEdge,
+      sequenceFromNodeId: after.sequenceFromNodeId === nodeId ? null : after.sequenceFromNodeId,
     });
   },
 
