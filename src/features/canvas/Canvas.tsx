@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import type { GraphNode, Progress, TaskStatus } from "../../shared/graph";
 import { centerOf, nodeSize, progressOf } from "../../shared/graph";
 import { radialLayoutPositions } from "../../shared/layout";
 import { copyText } from "../../shared/feed";
 import { useGraph, type CtxMenuItem } from "../../store/graphStore";
 import "./canvas.css";
+
+type DeleteTarget = {
+  ids: string[];
+  title: string;
+  message: string;
+};
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; cx: number; cy: number }
@@ -100,6 +107,7 @@ export default function Canvas() {
   const [preview, setPreview] = useState<string | null>(null);
   const [pulseId, setPulseId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ nodeId: string; text: string; title: string; goal: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const {
     nodes,
@@ -252,6 +260,32 @@ export default function Canvas() {
     [zoomAt],
   );
 
+  const requestDelete = useCallback((ids: string[]) => {
+    const st = useGraph.getState();
+    const picked = ids
+      .map((id) => st.nodes.find((n) => n.id === id))
+      .filter((n): n is GraphNode => !!n);
+    if (!picked.length) return;
+    const taskCount = picked.filter((n) => n.kind === "task").length;
+    const ideaCount = picked.filter((n) => n.kind !== "task").length;
+    const parts = [
+      taskCount ? `${taskCount} 个任务及其全部想法` : "",
+      ideaCount ? `${ideaCount} 个想法` : "",
+    ].filter(Boolean);
+    setDeleteTarget({
+      ids: picked.map((n) => n.id),
+      title: taskCount ? "删除画布内容" : "删除想法",
+      message: `确定删除${parts.join("和")}？此操作不可恢复。`,
+    });
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    useGraph.getState().select(deleteTarget.ids, null);
+    await useGraph.getState().removeSelection();
+    setDeleteTarget(null);
+  }, [deleteTarget]);
+
   /** build the context menu for a node (kind-aware) */
   const nodeCtxMenu = (nodeId: string, x: number, y: number) => {
     const st = useGraph.getState();
@@ -293,10 +327,7 @@ export default function Canvas() {
     items.push({
       label: n.kind === "task" ? "删除任务" : "删除",
       danger: true,
-      onClick: () => {
-        if (n.kind === "task" && n.ref_id) void st.deleteTask(n.ref_id);
-        else void st.deleteNodeById(nodeId);
-      },
+      onClick: () => requestDelete([nodeId]),
     });
     st.openCtxMenu({ x, y, items });
   };
@@ -532,8 +563,11 @@ export default function Canvas() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || target?.isContentEditable) return;
+      if (target?.closest(".sidebar, .ctx-menu, .modal, .capture, [data-confirm-dialog]")) return;
+      if (deleteTarget) return;
       if (e.key === "Escape") {
         useGraph.getState().closeCtxMenu();
         select([], null);
@@ -552,14 +586,16 @@ export default function Canvas() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        void useGraph.getState().removeSelection();
+        const st = useGraph.getState();
+        if (st.selectedEdge) void st.removeSelection();
+        else requestDelete([...st.selection]);
       }
       if (e.key === "1") setMode("select");
       if (e.key === "2") setMode("link");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [select, setMode, selection]);
+  }, [deleteTarget, requestDelete, select, setMode, selection]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -694,7 +730,14 @@ export default function Canvas() {
         <button
           type="button"
           className="tbtn"
-          onClick={() => void useGraph.getState().removeSelection()}
+          onClick={() => {
+            const st = useGraph.getState();
+            if (st.selectedEdge) {
+              void st.removeSelection();
+            } else {
+              requestDelete([...st.selection]);
+            }
+          }}
         >
           删除
         </button>
@@ -1104,6 +1147,16 @@ export default function Canvas() {
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          open
+          title={deleteTarget.title}
+          message={deleteTarget.message}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );

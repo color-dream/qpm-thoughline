@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyTheme } from "./main";
+import ConfirmDialog from "./components/ConfirmDialog";
 import Canvas from "./features/canvas/Canvas";
 import Settings from "./features/settings/Settings";
 import { progressOf } from "./shared/graph";
 import { useGraph, type CtxMenuItem } from "./store/graphStore";
 
 type Toast = { id: number; title: string; sub?: string };
+type DeleteConfirm =
+  | { type: "task"; id: string; title: string }
+  | { type: "node"; id: string; label: string };
 
-function TaskRow({ t }: { t: { id: string; title: string; status: string } }) {
+function TaskRow({
+  t,
+  onRequestDelete,
+}: {
+  t: { id: string; title: string; status: string };
+  onRequestDelete: (task: { id: string; title: string }) => void;
+}) {
   const focusTask = useGraph((s) => s.focusTask);
   const focusTaskById = useGraph((s) => s.focusTaskById);
   const completeTask = useGraph((s) => s.completeTask);
@@ -37,11 +47,7 @@ function TaskRow({ t }: { t: { id: string; title: string; status: string } }) {
     items.push({
       label: "删除任务",
       danger: true,
-      onClick: () => {
-        if (window.confirm(`删除任务「${t.title}」及其全部想法?不可恢复。`)) {
-          void st.deleteTask(t.id);
-        }
-      },
+      onClick: () => onRequestDelete({ id: t.id, title: t.title }),
     });
     st.openCtxMenu({ x: e.clientX, y: e.clientY, items });
   };
@@ -52,6 +58,13 @@ function TaskRow({ t }: { t: { id: string; title: string; status: string } }) {
         type="button"
         className={"task-item" + (focusTask === t.id ? " active" : "")}
         onClick={() => focusTaskById(t.id)}
+        onKeyDown={(e) => {
+          if ((e.key === "Delete" || e.key === "Backspace") && focusTask === t.id) {
+            e.preventDefault();
+            e.stopPropagation();
+            onRequestDelete({ id: t.id, title: t.title });
+          }
+        }}
         onContextMenu={openMenu}
       >
         <div className="t-name">
@@ -88,6 +101,7 @@ export default function App() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<{ title: string; goal: string }>({ title: "", goal: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
   const [view, setView] = useState<"canvas" | "settings">("canvas");
 
   const tasks = useGraph((s) => s.tasks);
@@ -174,6 +188,19 @@ export default function App() {
     await createTask(title, taskDraft.goal.trim());
     setTaskModalOpen(false);
   }, [taskDraft, createTask]);
+
+  const requestDeleteTask = useCallback((task: { id: string; title: string }) => {
+    useGraph.getState().closeCtxMenu();
+    setDeleteConfirm({ type: "task", id: task.id, title: task.title });
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    const target = deleteConfirm;
+    if (!target) return;
+    if (target.type === "task") await useGraph.getState().deleteTask(target.id);
+    else await useGraph.getState().deleteNodeById(target.id);
+    setDeleteConfirm(null);
+  }, [deleteConfirm]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -333,13 +360,13 @@ export default function App() {
           </div>
           <div className="task-list">
             {liveTasks.filter((t) => t.status !== "done").map((t) => (
-              <TaskRow key={t.id} t={t} />
+              <TaskRow key={t.id} t={t} onRequestDelete={requestDeleteTask} />
             ))}
             {liveTasks.some((t) => t.status === "done") && (
               <div className="side-group">已完成</div>
             )}
             {liveTasks.filter((t) => t.status === "done").map((t) => (
-              <TaskRow key={t.id} t={t} />
+              <TaskRow key={t.id} t={t} onRequestDelete={requestDeleteTask} />
             ))}
             {liveTasks.length === 0 && <div className="empty">还没有任务，点 + 新建</div>}
           </div>
@@ -385,7 +412,10 @@ export default function App() {
                                 {
                                   label: "删除想法",
                                   danger: true,
-                                  onClick: () => void st.deleteNodeById(n.id),
+                                  onClick: () => {
+                                    st.closeCtxMenu();
+                                    setDeleteConfirm({ type: "node", id: n.id, label: n.text || "这条想法" });
+                                  },
                                 },
                               ],
                             });
@@ -522,6 +552,20 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          open
+          title={deleteConfirm.type === "task" ? "删除任务" : "删除想法"}
+          message={
+            deleteConfirm.type === "task"
+              ? `删除任务「${deleteConfirm.title}」及其全部想法？此操作不可恢复。`
+              : `删除「${deleteConfirm.label}」？此操作不可恢复。`
+          }
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={confirmDelete}
+        />
       )}
 
       <style>{css}</style>
@@ -663,6 +707,10 @@ const css = `
 .task-item:hover {
   background: var(--elev);
   border-color: var(--line-soft);
+}
+.task-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .task-item.active {
   background: var(--elev-2);
