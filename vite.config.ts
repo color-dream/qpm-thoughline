@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // BASE_PATH 允许在构建时注入部署子路径（如 GitHub Pages 项目页 "/<repo>/"）。
 // 必须以 / 开头并以 / 结尾；不设置时默认 "/"。
@@ -8,6 +10,8 @@ const basePath = rawBase && rawBase !== "/" ? rawBase : "/";
 if (basePath !== "/" && !/^\/.*\/$/.test(basePath)) {
   throw new Error(`BASE_PATH must look like "/<path>/", got: ${rawBase}`);
 }
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   base: basePath,
@@ -22,5 +26,11 @@ export default defineConfig({
     target: "es2021",
     minify: "esbuild",
     sourcemap: false,
+    rollupOptions: {
+      input: {
+        landing: resolve(projectRoot, "index.html"),
+        workspace: resolve(projectRoot, "workspace/index.html"),
+      },
+    },
   },
 });

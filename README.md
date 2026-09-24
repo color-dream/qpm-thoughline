@@ -52,7 +52,7 @@ npm ci
 npm run dev
 ```
 
-浏览器打开 <http://localhost:5173>。常用检查命令：
+浏览器打开 <http://localhost:5173> 查看公开介绍页；工作区位于 <http://localhost:5173/workspace/>。常用检查命令：
 
 ```bash
 npm test
@@ -61,9 +61,15 @@ npm run build
 npm run preview
 ```
 
-构建结果在 `dist/`，由 GitHub Pages workflow 发布到静态站点（配置见 [docs/release.md](docs/release.md)）。推送到 `master` 或 `main` 会触发部署。
+构建结果包含公开首页 `dist/index.html` 和工作区入口 `dist/workspace/index.html`，由 GitHub Pages workflow 发布到静态站点（配置见 [docs/release.md](docs/release.md)）。公开首页用于产品介绍和搜索收录；工作区默认禁止搜索引擎收录。推送到 `master` 或 `main` 会触发部署。
 
-## 数据与隐私
+## 访问入口
+
+- `/`：公开产品首页，用于介绍、隐私边界和搜索收录
+- `/workspace/`：本地工作区，数据保存在当前浏览器，页面禁止搜索引擎收录
+
+首次进入工作区不会生成示例任务或节点；可以从左侧新建任务，或在空画布上记录第一个想法。已有浏览器快照会继续读取。
+
 
 Web 版本把数据保存在当前浏览器 origin 的 `localStorage` 中。浏览器通常限制在约 5 MB，清理站点数据也可能删除内容。设置页提供完整 JSON 导出，请在跨设备、清理浏览器或升级前先备份。
 

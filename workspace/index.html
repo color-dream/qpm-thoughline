@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="念头工作区：在浏览器本地记录想法、关联任务并继续工作。" />
+    <meta name="theme-color" content="#f4f2ed" />
+    <title>工作区 · 念头</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f3ede3'/%3E%3Cpath d='M16 5c5 3 8 6.5 8 11a8 8 0 1 1-16 0c0-4.5 3-8 8-11z' fill='%23b85c38'/%3E%3C/svg%3E" />
+    <script>
+      try {
+        var t = localStorage.getItem("qpm-thoughtline-theme-v1") || localStorage.getItem("qp-theme") || "light";
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="../src/main.tsx"></script>
+  </body>
+</html>

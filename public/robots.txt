@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /workspace/
+Disallow: /qpm-thoughline/workspace/
+
+Sitemap: https://color-dream.github.io/qpm-thoughline/sitemap.xml

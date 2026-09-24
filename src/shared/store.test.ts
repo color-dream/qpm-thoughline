@@ -51,6 +51,10 @@ beforeEach(() => {
 });
 
 describe("localStorage graph persistence", () => {
+  it("starts with an empty graph instead of demo data", async () => {
+    expect(await loadGraph()).toEqual({ tasks: [], nodes: [], edges: [] });
+  });
+
   it("persists node content and metadata through updates", async () => {
     await insertTask(task);
     await insertNode({ ...node, handled_at: "2026-01-02T00:00:00.000Z", progress: "doing" }, "原始想法");

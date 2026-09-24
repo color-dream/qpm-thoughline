@@ -27,12 +27,16 @@ npm run preview
 
 ```text
 src/
-  App.tsx                 应用壳与浏览器内捕获层
+  App.tsx                 工作区应用壳与浏览器内捕获层
   features/canvas/        画布渲染与交互
   features/settings/      设置、导入导出入口
   shared/                 领域类型、存储、导出、布局和纯函数测试
   store/                  Zustand 图状态与操作
-  styles/                 主题 token 和组件样式
+  styles/                 主题 token 和工作区组件样式
+src/landing.ts            公开首页样式入口
+src/landing.css           公开首页视觉与响应式样式
+workspace/index.html      GitHub Pages 工作区静态入口
+public/                   robots、sitemap 和社交分享资源
 docs/                     当前说明与历史设计材料
 design/                   不参与构建的交互设计稿
 ```

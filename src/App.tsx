@@ -276,8 +276,11 @@ export default function App() {
     <div className="shell">
       <header className="header">
         <div className="brand">
-          <span className="leaf" />
-          念头 <span className="sub">· qpm-thoughtline</span>
+          <a className="brand-home" href="../" aria-label="返回念头首页">
+            <span className="leaf" />
+            念头
+          </a>
+          <span className="sub">· qpm-thoughtline</span>
         </div>
         <nav className="tabs">
           <button
@@ -575,13 +578,9 @@ const css = `
   background: var(--panel);
   border-bottom: 1px solid var(--line-soft);
 }
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 14px;
-}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.brand-home { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.brand-home:hover { color: var(--text); }
 .brand .sub { color: var(--text-2); font-weight: 500; margin-left: 2px; }
 .leaf {
   width: 18px;

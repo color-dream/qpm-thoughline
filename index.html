@@ -3,20 +3,126 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>念头</title>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f3ede3'/%3E%3Cpath d='M16 5c5 3 8 6.5 8 11a8 8 0 1 1-16 0c0-4.5 3-8 8-11z' fill='%23b85c38'/%3E%3C/svg%3E"
-    />
-    <script>
-      try {
-        var t = localStorage.getItem("qpm-thoughtline-theme-v1") || localStorage.getItem("qp-theme") || "light";
-        document.documentElement.setAttribute("data-theme", t);
-      } catch (e) {}
+    <meta name="theme-color" content="#f4f2ed" />
+    <meta name="description" content="念头是一个本地优先、开源的工作上下文续接工具：记下突然出现的想法，串回任务与上下文，回来继续工作。无需账号，默认不上传。" />
+    <link rel="canonical" href="https://color-dream.github.io/qpm-thoughline/" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="念头" />
+    <meta property="og:title" content="念头 · 本地优先的工作上下文续接工具" />
+    <meta property="og:description" content="记下想法，串回任务，回来继续工作。开源、无需账号、数据留在你的浏览器里。" />
+    <meta property="og:url" content="https://color-dream.github.io/qpm-thoughline/" />
+    <meta property="og:image" content="https://color-dream.github.io/qpm-thoughline/og-image.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="念头 · 本地优先的工作上下文续接工具" />
+    <meta name="twitter:description" content="记下想法，串回任务，回来继续工作。开源、无需账号、数据留在你的浏览器里。" />
+    <meta name="twitter:image" content="https://color-dream.github.io/qpm-thoughline/og-image.svg" />
+    <title>念头 · 本地优先的工作上下文续接工具</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f3ede3'/%3E%3Cpath d='M16 5c5 3 8 6.5 8 11a8 8 0 1 1-16 0c0-4.5 3-8 8-11z' fill='%23b85c38'/%3E%3C/svg%3E" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "念头",
+        "alternateName": "qpm-thoughtline",
+        "url": "https://color-dream.github.io/qpm-thoughline/",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Web browser",
+        "description": "本地优先、开源的工作上下文续接工具，用来记录想法、关联任务并继续工作。",
+        "featureList": ["浏览器本地存储", "画布关联任务与想法", "JSON 备份导入导出", "复制整理文本到剪贴板"]
+      }
     </script>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="念头首页">
+        <span class="leaf" aria-hidden="true"></span>
+        <span>念头</span>
+      </a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="workspace/">进入工作区</a>
+        <a href="https://github.com/color-dream/qpm-thoughline" rel="noreferrer">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>本地优先 · 开源 · 无需账号</p>
+          <h1 id="hero-title">把一闪而过的想法，<em>接回工作里。</em></h1>
+          <p class="hero-lede">念头帮助你在 AI 工作间隙记下灵感，串回任务与上下文，回来时继续行动，而不是重新回忆自己为什么这样想。</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="workspace/">打开工作区 <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="#how-it-works">了解它怎么工作</a>
+          </div>
+          <p class="hero-note">数据默认留在当前浏览器，不自动发送到 AI 服务。</p>
+        </div>
+        <div class="hero-visual" aria-label="念头画布的静态示意" role="img">
+          <div class="visual-caption">一张安静的上下文地图</div>
+          <div class="mini-canvas">
+            <span class="mini-edge edge-one" aria-hidden="true"></span>
+            <span class="mini-edge edge-two" aria-hidden="true"></span>
+            <div class="mini-node mini-task"><small>任务</small><strong>重构登录模块</strong><span>进行中 · 3 节点</span></div>
+            <div class="mini-node mini-thought"><small>想法</small><strong>兼容第三方 OAuth</strong></div>
+            <div class="mini-node mini-ai"><small>AI 产出</small><strong>AuthProvider + LegacySession</strong></div>
+            <div class="mini-node mini-free"><small>未关联</small><strong>下个季度要不要做个播客？</strong></div>
+            <span class="mini-plus" aria-hidden="true">+</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="trust-strip" aria-label="产品边界">
+        <span>浏览器 localStorage</span><span>无账号</span><span>无遥测</span><span>JSON 可备份</span><span>AI 由你选择</span>
+      </section>
+
+      <section class="section process-section" id="how-it-works" aria-labelledby="process-title">
+        <div class="section-intro">
+          <p class="eyebrow">工作方式</p>
+          <h2 id="process-title">记、串、续。<br />只保留真正有用的上下文。</h2>
+        </div>
+        <div class="process-grid">
+          <article class="process-item"><span class="step-number">01</span><h3>记</h3><p>在画布上双击，或者打开捕获层，先把突然出现的想法接住。先记录，不打断手上的工作。</p></article>
+          <article class="process-item"><span class="step-number">02</span><h3>串</h3><p>把任务、想法、AI 产出和下一步连成关系。画布是导航，不是要求你维护一套复杂的知识库。</p></article>
+          <article class="process-item"><span class="step-number">03</span><h3>续</h3><p>回来时从任务和未处理想法开始。需要时复制整理后的文本，交给你选择的任意 AI。</p></article>
+        </div>
+      </section>
+
+      <section class="section boundary-section" aria-labelledby="boundary-title">
+        <div class="boundary-copy">
+          <p class="eyebrow">把数据留在你手里</p>
+          <h2 id="boundary-title">轻量，不等于<br /><em>不诚实。</em></h2>
+          <p>念头是一个纯 Web 工具。没有账号系统、云同步或后台遥测；你的任务和想法保存在当前网站 origin 的 localStorage 中。清理浏览器数据可能会删除内容，所以设置页提供完整 JSON 导出。</p>
+          <a class="text-link" href="https://github.com/color-dream/qpm-thoughline/blob/master/PRIVACY.md" rel="noreferrer">阅读隐私说明 <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="boundary-list" aria-label="产品边界列表">
+          <div><span class="list-mark">+</span><strong>适合</strong><p>工作中的临时想法、任务上下文、下一步线索。</p></div>
+          <div><span class="list-mark">−</span><strong>不是</strong><p>团队项目管理、通用笔记、自动执行的 AI Agent。</p></div>
+          <div><span class="list-mark">↗</span><strong>出口</strong><p>导出 JSON，或把整理后的文本复制给你信任的服务。</p></div>
+        </div>
+      </section>
+
+      <section class="section faq-section" aria-labelledby="faq-title">
+        <div class="section-intro"><p class="eyebrow">常见问题</p><h2 id="faq-title">开始之前，先知道这些。</h2></div>
+        <div class="faq-list">
+          <details><summary>我的数据保存在哪里？</summary><p>保存于当前浏览器 origin 的 localStorage。不同域名或部署地址之间不会共享数据。</p></details>
+          <details><summary>念头会自动把内容发给 AI 吗？</summary><p>不会。交给 AI 只会生成结构化文本，并尝试写入浏览器剪贴板；是否粘贴到哪项服务，由你决定。</p></details>
+          <details><summary>如何备份或迁移？</summary><p>在工作区的设置页导出完整 JSON。清理浏览器、切换域名或升级前，请先导出备份。</p></details>
+          <details><summary>Web 版支持系统级快捷捕获吗？</summary><p>不支持。浏览器页面聚焦时可以使用页面内交互；系统级热键和托盘不属于当前纯 Web 版本。</p></details>
+        </div>
+      </section>
+
+      <section class="final-cta" aria-labelledby="cta-title">
+        <div><p class="eyebrow">准备好了？</p><h2 id="cta-title">让下一个想法<br />有地方回来。</h2></div>
+        <a class="button button-primary" href="workspace/">进入念头工作区 <span aria-hidden="true">→</span></a>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand"><span class="leaf" aria-hidden="true"></span><span>念头</span><small>qpm-thoughtline</small></div>
+      <nav aria-label="页脚导航"><a href="workspace/">工作区</a><a href="https://github.com/color-dream/qpm-thoughline/blob/master/PRIVACY.md" rel="noreferrer">隐私</a><a href="https://github.com/color-dream/qpm-thoughline/blob/master/SECURITY.md" rel="noreferrer">安全</a><a href="https://github.com/color-dream/qpm-thoughline" rel="noreferrer">GitHub</a></nav>
+      <span class="license">Apache-2.0 · 纯 Web Alpha</span>
+    </footer>
+    <script type="module" src="/src/landing.ts"></script>
   </body>
 </html>

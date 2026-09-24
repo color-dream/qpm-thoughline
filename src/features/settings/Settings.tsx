@@ -216,7 +216,7 @@ export default function Settings({
                   clearLocalData();
                   setConfirmWipe(false);
                   await init();
-                  flash("已清空并重置为示例数据");
+                  flash("本地数据已清空");
                 }}
               >
                 确认清空

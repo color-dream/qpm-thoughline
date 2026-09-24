@@ -5,7 +5,6 @@ import { findFreeRect } from "../shared/layout";
 import {
   deleteEdge,
   deleteNodes,
-  ensureSeed,
   insertEdge,
   insertTask,
   loadGraph,
@@ -122,7 +121,6 @@ export const useGraph = create<GraphState>((set, get) => ({
   notificationTaskId: null,
 
   init: async () => {
-    await ensureSeed();
     await get().reload();
     const first = get().tasks[0];
     set({ loaded: true, focusTask: first?.id ?? null });
