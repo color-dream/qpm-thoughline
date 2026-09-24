@@ -4,8 +4,8 @@
 
 - [项目首页](../README.md)：定位、快速开始、隐私边界和路线图
 - [架构说明](architecture.md)：领域对象、画布投影、存储适配和运行边界
-- [数据格式](data-format.md)：JSON 快照、localStorage、SQLite 和兼容规则
-- [迁移说明](migration-from-qpm-box.md)：从旧 qpm-box 目录、浏览器数据和备份迁移
+- [数据格式](data-format.md)：JSON 快照、localStorage 和兼容规则
+- [迁移说明](migration-from-qpm-box.md)：旧浏览器数据、旧桌面 JSON 备份和跨 origin 迁移
 - [开发指南](../DEVELOPMENT.md)：本地开发、测试和数据变更约定
 
 ## 历史材料

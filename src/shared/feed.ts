@@ -36,16 +36,10 @@ export function buildTimelineSummary(opts: {
 
 export async function copyText(text: string): Promise<boolean> {
   try {
-    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-    await writeText(text);
+    await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 
@@ -54,22 +48,6 @@ export async function notify(opts: {
   body: string;
   onClick?: () => void;
 }): Promise<void> {
-  try {
-    const { isPermissionGranted, requestPermission, sendNotification } =
-      await import("@tauri-apps/plugin-notification");
-    let granted = await isPermissionGranted();
-    if (!granted) {
-      const res = await requestPermission();
-      granted = res === "granted";
-    }
-    if (granted) {
-      sendNotification({ title: opts.title, body: opts.body });
-      return;
-    }
-  } catch {
-    /* fall through to web Notification */
-  }
-  // browser fallback
   try {
     if ("Notification" in window) {
       if (Notification.permission === "granted") {

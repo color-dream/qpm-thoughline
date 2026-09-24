@@ -126,8 +126,5 @@ export async function importGraphJson(raw: string): Promise<{ tasks: number; nod
 }
 
 export function dataDirHint(): string {
-  // Tauri build persists to SQLite under the app data dir; web build uses localStorage
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    ? "%APPDATA%/app.qpm.thoughtline/ (Windows · Tauri data directory)"
-    : "浏览器 localStorage（本地优先，清除浏览器数据会丢失，请定期导出备份）";
+  return "浏览器 localStorage（本地优先，清除浏览器数据会丢失，请定期导出备份）";
 }

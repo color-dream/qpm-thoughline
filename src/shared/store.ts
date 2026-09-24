@@ -1,13 +1,12 @@
 import type { Edge, GraphNode, GraphSnapshot, Progress, Task } from "./graph";
-import { nowIso, progressFromMeta, sanitizeSnapshot, uid } from "./graph";
+import { nowIso, sanitizeSnapshot, uid } from "./graph";
 import { capturedThoughtPosition, findFreeRect } from "./layout";
 
-/** Browser fallback when Tauri SQL plugin is unavailable */
+/** Browser localStorage snapshot */
 const LS_KEY = "qpm-thoughtline-graph-v1";
 const LEGACY_LS_KEY = "qpm-box-graph-v1";
 const BACKUP_TS_KEY = "qpm-thoughtline-last-export";
 const LEGACY_BACKUP_TS_KEY = "qpm-box-last-export";
-const DB_NAME = "sqlite:qpm-thoughtline.db";
 
 function migrateLegacyLocalStorage(): void {
   try {
@@ -65,28 +64,6 @@ export function clearLocalData(): void {
   }
 }
 
-type DbLike = {
-  select: <T>(sql: string, bind?: unknown[]) => Promise<T>;
-  execute: (sql: string, bind?: unknown[]) => Promise<{ rowsAffected: number }>;
-};
-
-let dbPromise: Promise<DbLike | null> | null = null;
-
-async function getDb(): Promise<DbLike | null> {
-  if (!dbPromise) {
-    dbPromise = (async () => {
-      try {
-        const { default: Database } = await import("@tauri-apps/plugin-sql");
-        const db = await Database.load(DB_NAME);
-        return db as unknown as DbLike;
-      } catch {
-        return null;
-      }
-    })();
-  }
-  return dbPromise;
-}
-
 function lsLoad(): GraphSnapshot {
   migrateLegacyLocalStorage();
   try {
@@ -103,47 +80,7 @@ function lsSave(snap: GraphSnapshot) {
 }
 
 export async function loadGraph(): Promise<GraphSnapshot> {
-  const db = await getDb();
-  if (!db) return lsLoad();
-
-  const tasks = await db.select<Task[]>("SELECT * FROM tasks ORDER BY created_at ASC");
-  const nodeRows = await db.select<Array<Omit<GraphNode, "collapsed"> & { collapsed: number | boolean }>>(
-    "SELECT * FROM nodes ORDER BY created_at ASC",
-  );
-  const edgeRows = await db.select<Edge[]>("SELECT * FROM edges ORDER BY created_at ASC");
-  // content row is keyed by node id (task_id column holds the association)
-  const thoughtRows = await db.select<Array<{ id: string; content_text: string; kind: string; meta: string }>>(
-    "SELECT id, content_text, kind, meta FROM thoughts",
-  );
-  const thoughtMap = new Map(thoughtRows.map((t) => [t.id, t]));
-
-  return {
-    tasks,
-    nodes: nodeRows.map((n) => {
-      const th = n.kind === "thought" || n.kind === "ai" || n.kind === "free" ? thoughtMap.get(n.id) : undefined;
-      let handledAt: string | null = null;
-      let progress: Progress | undefined;
-      if (th?.meta) {
-        try {
-          const meta = JSON.parse(th.meta) as { handled_at?: string | null; progress?: unknown };
-          handledAt = meta.handled_at ?? null;
-          progress = progressFromMeta(meta);
-        } catch {
-          handledAt = null;
-        }
-      }
-      return {
-        ...n,
-        collapsed: !!n.collapsed,
-        text: th?.content_text ?? n.text,
-        pending: (n.kind === "thought" || n.kind === "free") && th?.kind === "idea",
-        handled_at: handledAt,
-        progress,
-        title: n.kind === "task" ? tasks.find((t) => t.id === n.ref_id)?.title : undefined,
-      } satisfies GraphNode;
-    }),
-    edges: edgeRows,
-  };
+  return lsLoad();
 }
 
 export async function insertTask(input: {
@@ -167,15 +104,6 @@ export async function insertTask(input: {
     updated_at: input.updated_at || nowIso(),
   };
 
-  const db = await getDb();
-  if (db) {
-    await db.execute(
-      `INSERT OR REPLACE INTO tasks (id,title,goal,status,source,created_at,updated_at,meta)
-       VALUES (?,?,?,?,?,?,?,?)`,
-      [t.id, t.title, t.goal, t.status, t.source, t.created_at, t.updated_at, JSON.stringify(t.meta)],
-    );
-    return t;
-  }
   const snap = lsLoad();
   snap.tasks = [...snap.tasks.filter((x) => x.id !== t.id), t];
   lsSave(snap);
@@ -184,11 +112,6 @@ export async function insertTask(input: {
 
 export async function updateTaskStatus(id: string, status: Task["status"]) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    await db.execute("UPDATE tasks SET status=?, updated_at=? WHERE id=?", [status, ts, id]);
-    return;
-  }
   const snap = lsLoad();
   snap.tasks = snap.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: ts } : t));
   lsSave(snap);
@@ -196,59 +119,12 @@ export async function updateTaskStatus(id: string, status: Task["status"]) {
 
 /** Delete the task row (canvas cascade is handled by deleteNodes on the task node) */
 export async function deleteTaskRow(id: string) {
-  const db = await getDb();
-  if (db) {
-    await db.execute("DELETE FROM tasks WHERE id=?", [id]);
-    return;
-  }
   const snap = lsLoad();
   snap.tasks = snap.tasks.filter((t) => t.id !== id);
   lsSave(snap);
 }
 
 export async function insertNode(n: GraphNode, text?: string) {
-  const db = await getDb();
-  if (db) {
-    await db.execute(
-      `INSERT OR REPLACE INTO nodes (id,kind,ref_id,x,y,width,height,collapsed,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [
-        n.id,
-        n.kind,
-        n.ref_id,
-        n.x,
-        n.y,
-        n.width,
-        n.height,
-        n.collapsed ? 1 : 0,
-        n.created_at,
-        n.updated_at,
-      ],
-    );
-    if ((n.kind === "thought" || n.kind === "ai" || n.kind === "free") && text != null) {
-      await db.execute(
-        `INSERT OR REPLACE INTO thoughts (id,task_id,content_text,kind,origin,created_at,updated_at,meta)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [
-          n.id,
-          n.kind === "free" ? null : n.ref_id,
-          text,
-          n.kind === "ai" ? "other" : "idea",
-          "hotkey",
-          n.created_at,
-          n.updated_at,
-          n.progress ? JSON.stringify({ progress: n.progress }) : "{}",
-        ],
-      );
-    } else if ((n.kind === "thought" || n.kind === "ai" || n.kind === "free") && (n.handled_at != null || n.progress)) {
-      // text unchanged but handled flag / progress needs persisting
-      await db.execute(`UPDATE thoughts SET meta=? WHERE id=?`, [
-        JSON.stringify({ ...(n.handled_at != null ? { handled_at: n.handled_at } : {}), ...(n.progress ? { progress: n.progress } : {}) }),
-        n.id,
-      ]);
-    }
-    return;
-  }
   const snap = lsLoad();
   snap.nodes = [...snap.nodes.filter((x) => x.id !== n.id), { ...n, text: text ?? n.text }];
   lsSave(snap);
@@ -256,11 +132,6 @@ export async function insertNode(n: GraphNode, text?: string) {
 
 export async function updateNodePos(id: string, x: number, y: number) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    await db.execute("UPDATE nodes SET x=?, y=?, updated_at=? WHERE id=?", [x, y, ts, id]);
-    return;
-  }
   const snap = lsLoad();
   snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, x, y, updated_at: ts } : n));
   lsSave(snap);
@@ -268,11 +139,6 @@ export async function updateNodePos(id: string, x: number, y: number) {
 
 export async function updateNodeCollapsed(id: string, collapsed: boolean) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    await db.execute("UPDATE nodes SET collapsed=?, updated_at=? WHERE id=?", [collapsed ? 1 : 0, ts, id]);
-    return;
-  }
   const snap = lsLoad();
   snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, collapsed, updated_at: ts } : n));
   lsSave(snap);
@@ -281,11 +147,6 @@ export async function updateNodeCollapsed(id: string, collapsed: boolean) {
 /** Persist edited content for a thought/ai/free node */
 export async function updateNodeText(id: string, text: string) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    await db.execute("UPDATE thoughts SET content_text=?, updated_at=? WHERE id=?", [text, ts, id]);
-    return;
-  }
   const snap = lsLoad();
   snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, text, updated_at: ts } : n));
   lsSave(snap);
@@ -294,16 +155,6 @@ export async function updateNodeText(id: string, text: string) {
 /** Persist task title/goal */
 export async function updateTaskFields(id: string, fields: { title?: string; goal?: string }) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    await db.execute("UPDATE tasks SET title=COALESCE(?, title), goal=COALESCE(?, goal), updated_at=? WHERE id=?", [
-      fields.title ?? null,
-      fields.goal ?? null,
-      ts,
-      id,
-    ]);
-    return;
-  }
   const snap = lsLoad();
   snap.tasks = snap.tasks.map((t) =>
     t.id === id ? { ...t, ...fields, updated_at: ts } : t,
@@ -315,50 +166,14 @@ export async function updateTaskFields(id: string, fields: { title?: string; goa
 export async function setThoughtHandled(id: string, handled: boolean) {
   const ts = nowIso();
   const handledAt = handled ? ts : null;
-  const db = await getDb();
-  if (db) {
-    // read-modify-write: meta also carries progress; never clobber it
-    const rows = await db.select<Array<{ meta: string }>>("SELECT meta FROM thoughts WHERE id=?", [id]);
-    let meta: Record<string, unknown> = {};
-    try {
-      meta = rows[0]?.meta ? JSON.parse(rows[0].meta) : {};
-    } catch {
-      meta = {};
-    }
-    if (handledAt) meta.handled_at = handledAt;
-    else delete meta.handled_at;
-    await db.execute("UPDATE thoughts SET meta=?, updated_at=? WHERE id=?", [
-      JSON.stringify(meta),
-      ts,
-      id,
-    ]);
-    return;
-  }
   const snap = lsLoad();
-  snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, handled_at: handledAt } : n));
+  snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, handled_at: handledAt, updated_at: ts } : n));
   lsSave(snap);
 }
 
 /** Set the manual progress marker on an idea-like node (thoughts.meta.progress) */
 export async function updateNodeProgress(id: string, progress: Progress) {
   const ts = nowIso();
-  const db = await getDb();
-  if (db) {
-    const rows = await db.select<Array<{ meta: string }>>("SELECT meta FROM thoughts WHERE id=?", [id]);
-    let meta: Record<string, unknown> = {};
-    try {
-      meta = rows[0]?.meta ? JSON.parse(rows[0].meta) : {};
-    } catch {
-      meta = {};
-    }
-    meta.progress = progress;
-    await db.execute("UPDATE thoughts SET meta=?, updated_at=? WHERE id=?", [
-      JSON.stringify(meta),
-      ts,
-      id,
-    ]);
-    return;
-  }
   const snap = lsLoad();
   snap.nodes = snap.nodes.map((n) => (n.id === id ? { ...n, progress, updated_at: ts } : n));
   lsSave(snap);
@@ -368,24 +183,6 @@ export async function updateNodeProgress(id: string, progress: Progress) {
 export async function setTaskArchived(id: string, archived: boolean) {
   const ts = nowIso();
   const archivedAt = archived ? ts : null;
-  const db = await getDb();
-  if (db) {
-    const rows = await db.select<Array<{ meta: string }>>("SELECT meta FROM tasks WHERE id=?", [id]);
-    let meta: Record<string, unknown> = {};
-    try {
-      meta = rows[0]?.meta ? JSON.parse(rows[0].meta) : {};
-    } catch {
-      meta = {};
-    }
-    if (archivedAt) meta.archived_at = archivedAt;
-    else delete meta.archived_at;
-    await db.execute("UPDATE tasks SET meta=?, updated_at=? WHERE id=?", [
-      JSON.stringify(meta),
-      ts,
-      id,
-    ]);
-    return;
-  }
   const snap = lsLoad();
   snap.tasks = snap.tasks.map((t) => {
     if (t.id !== id) return t;
@@ -398,14 +195,6 @@ export async function setTaskArchived(id: string, archived: boolean) {
 }
 
 export async function insertEdge(e: Edge) {
-  const db = await getDb();
-  if (db) {
-    await db.execute(
-      `INSERT OR REPLACE INTO edges (id,source_id,target_id,kind,created_at) VALUES (?,?,?,?,?)`,
-      [e.id, e.source_id, e.target_id, e.kind, e.created_at],
-    );
-    return;
-  }
   const snap = lsLoad();
   snap.edges = [...snap.edges.filter((x) => x.id !== e.id), e];
   lsSave(snap);
@@ -413,14 +202,6 @@ export async function insertEdge(e: Edge) {
 
 export async function deleteNodes(ids: string[]) {
   if (!ids.length) return;
-  const db = await getDb();
-  if (db) {
-    const ph = ids.map(() => "?").join(",");
-    await db.execute(`DELETE FROM edges WHERE source_id IN (${ph}) OR target_id IN (${ph})`, [...ids, ...ids]);
-    await db.execute(`DELETE FROM nodes WHERE id IN (${ph})`, ids);
-    await db.execute(`DELETE FROM thoughts WHERE id IN (${ph})`, ids);
-    return;
-  }
   const snap = lsLoad();
   const set = new Set(ids);
   snap.nodes = snap.nodes.filter((n) => !set.has(n.id));
@@ -429,11 +210,6 @@ export async function deleteNodes(ids: string[]) {
 }
 
 export async function deleteEdge(id: string) {
-  const db = await getDb();
-  if (db) {
-    await db.execute("DELETE FROM edges WHERE id=?", [id]);
-    return;
-  }
   const snap = lsLoad();
   snap.edges = snap.edges.filter((e) => e.id !== id);
   lsSave(snap);

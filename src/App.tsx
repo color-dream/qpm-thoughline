@@ -7,11 +7,6 @@ import { useGraph, type CtxMenuItem } from "./store/graphStore";
 
 type Toast = { id: number; title: string; sub?: string };
 
-const surface =
-  typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("surface")
-    : null;
-
 function TaskRow({ t }: { t: { id: string; title: string; status: string } }) {
   const focusTask = useGraph((s) => s.focusTask);
   const focusTaskById = useGraph((s) => s.focusTaskById);
@@ -86,7 +81,7 @@ export default function App() {
   const [theme, setTheme] = useState<string>(
     () => document.documentElement.getAttribute("data-theme") || "light",
   );
-  const [captureOpen, setCaptureOpen] = useState(surface === "capture");
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [text, setText] = useState("");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [poolOpen, setPoolOpen] = useState(false);
@@ -113,7 +108,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (surface === "capture") return;
     void init();
   }, [init]);
 
@@ -142,18 +136,10 @@ export default function App() {
     setCaptureOpen(true);
   }, []);
 
-  const closeCapture = useCallback(async () => {
+  const closeCapture = useCallback(() => {
     setCaptureOpen(false);
     capturePosRef.current = null;
     useGraph.setState({ sequenceFromNodeId: null });
-    if (surface === "capture") {
-      try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("hide_capture_window");
-      } catch {
-        /* browser */
-      }
-    }
   }, []);
 
   const saveThought = useCallback(async () => {
@@ -285,30 +271,6 @@ export default function App() {
       </div>
     </>
   );
-
-  if (surface === "capture") {
-    return (
-      <div className="cap-surface">
-        <div className="capture standalone" role="dialog" aria-label="快速记想法">
-          {captureUi}
-        </div>
-        <div className="toast-wrap" aria-live="polite">
-          {toasts.map((t) => (
-            <div
-              key={t.id}
-              className={"toast show" + (notificationTaskId ? " clickable" : "")}
-              onClick={notificationTaskId ? activateNotificationToast : undefined}
-              role={notificationTaskId ? "button" : undefined}
-            >
-              {t.title}
-              {t.sub ? <span className="t-sub">{t.sub}</span> : null}
-            </div>
-          ))}
-        </div>
-        <style>{css}</style>
-      </div>
-    );
-  }
 
   return (
     <div className="shell">
@@ -829,21 +791,6 @@ const css = `
 .status .sep { width: 1px; height: 12px; background: var(--line); }
 .ov-root { position: fixed; inset: 0; z-index: 100; }
 .ov-backdrop { position: absolute; inset: 0; background: var(--scrim); }
-.cap-surface { height: 100%; background: var(--capture-bg); display: flex; flex-direction: column; }
-.capture.standalone {
-  position: relative;
-  top: auto;
-  left: auto;
-  transform: none;
-  width: 100%;
-  border-radius: 0;
-  border: none;
-  border-top: 2px solid var(--accent);
-  box-shadow: none;
-  backdrop-filter: none;
-  flex: 1;
-  background: var(--capture-bg);
-}
 .capture {
   position: absolute;
   top: 36%;

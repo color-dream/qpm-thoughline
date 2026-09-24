@@ -16,12 +16,11 @@
 
 ## 当前状态
 
-当前发布形态是 **Web-first Alpha**：
+当前发布形态是 **纯 Web Alpha**：
 
 - React 18 + TypeScript + Vite + Zustand
 - 浏览器 `localStorage` 本地持久化
 - 自研 DOM 节点与 SVG 连线画布
-- Tauri 2 桌面壳代码保留为可选路径，尚未作为稳定发行版承诺
 - 默认无账号、无遥测、无远程 AI 请求
 
 当前已经支持：
@@ -62,25 +61,13 @@ npm run build
 npm run preview
 ```
 
-构建结果在 `dist/`，可以由任意静态站点托管。推送到 `main` 会自动部署到 GitHub Pages（配置见 [docs/release.md](docs/release.md)），也可以使用 Docker：
-
-```bash
-docker build -t qpm-thoughtline:local .
-docker run --rm -p 10109:80 qpm-thoughtline:local
-```
-
-Tauri 命令仍保留，但桌面壳属于实验性路径，需要 Rust stable、Windows MSVC 构建工具和 Tauri 所需系统依赖：
-
-```bash
-npm run tauri:dev
-npm run tauri:build
-```
+构建结果在 `dist/`，由 GitHub Pages workflow 发布到静态站点（配置见 [docs/release.md](docs/release.md)）。推送到 `master` 或 `main` 会触发部署。
 
 ## 数据与隐私
 
-Web 版本默认把数据保存在当前浏览器 origin 的 `localStorage` 中。浏览器通常限制在约 5 MB，清理站点数据也可能删除内容。设置页提供完整 JSON 导出，请在跨设备、清理浏览器或升级前先备份。
+Web 版本把数据保存在当前浏览器 origin 的 `localStorage` 中。浏览器通常限制在约 5 MB，清理站点数据也可能删除内容。设置页提供完整 JSON 导出，请在跨设备、清理浏览器或升级前先备份。
 
-Tauri 路径使用应用数据目录中的 SQLite 文件，并额外使用系统剪贴板和通知权限。应用不会默认上传念头、任务或剪贴板内容，也没有内置遥测。把内容复制到第三方 AI 服务时，数据处理由该服务的隐私政策决定。
+应用不会默认上传念头、任务或剪贴板内容，也没有内置遥测。把内容复制到第三方 AI 服务时，数据处理由该服务的隐私政策决定。
 
 本地存储不是加密保险箱。不要把密钥、密码或其他不应出现在普通用户目录中的秘密写入念头。
 
@@ -98,7 +85,7 @@ Tauri 路径使用应用数据目录中的 SQLite 文件，并额外使用系统
 - [变更记录](CHANGELOG.md)
 - [设计交互稿](design/画布交互稿.html)
 
-`docs/01-核心需求.md`、`docs/02-交互与技术方案.md` 和 `docs/03-开发迭代计划.md` 是原项目的历史设计材料；它们不替代当前代码和本 README。`docs/04-变更记录.md` 保存 Web-first 决策和早期实现记录。
+`docs/01-核心需求.md`、`docs/02-交互与技术方案.md` 和 `docs/03-开发迭代计划.md` 是原项目的历史设计材料；它们不替代当前代码和本 README。`docs/04-变更记录.md` 保存早期实现历史和 2026-09-23 纯 Web 定案记录。
 
 ## 路线图
 
@@ -106,12 +93,11 @@ Tauri 路径使用应用数据目录中的 SQLite 文件，并额外使用系统
 
 - 捕获层支持默认 Inbox 和快速选择当前任务
 - 补齐“回来后继续”的时间线视图
-- 完成真实浏览器黄金路径和静态部署验证
+- 完成真实浏览器黄金路径和 GitHub Pages 静态部署验证
 - 增加搜索、筛选和更完整的导入恢复测试
 
 ### 后续方向
 
-- 可选 Tauri 全局快捷键、托盘和 SQLite 桌面版
 - 浏览器扩展、本地 API 或 MCP 适配器
 - 语音输入和本地处理
 - 可自托管的同步层

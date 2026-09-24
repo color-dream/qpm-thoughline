@@ -8,7 +8,7 @@
 
 ## Dependencies
 
-JavaScript 依赖由 `package.json` / `package-lock.json` 管理，Rust 依赖由 `src-tauri/Cargo.toml` / `Cargo.lock` 管理。发布二进制包前，应根据实际打包清单生成完整的依赖许可证报告；本文件不替代依赖自身携带的许可证文本。
+JavaScript 依赖由 `package.json` / `package-lock.json` 管理。发布静态 Web 资产前，应根据实际依赖生成完整的依赖许可证报告；本文件不替代依赖自身携带的许可证文本。
 
 ## Product names
 

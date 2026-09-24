@@ -18,13 +18,13 @@ npm run build
 git diff --check
 ```
 
-涉及 Tauri 时，如果环境具备 Rust 工具链，再运行 `npm run tauri:build`。否则在 PR 描述中明确未验证桌面路径。
+涉及持久化或导入导出时，运行本地验证并检查旧数据兼容性。
 
 ## 提交代码
 
 - 保持现有 TypeScript strict 配置和轻量组件风格。
 - 领域规则放在 `src/shared`，不要在多个 UI 组件中复制。
-- 同时检查 Web localStorage 与 Tauri SQLite 路径。
+- 持久化使用浏览器 localStorage，并维护 JSON 导入导出兼容。
 - 修改数据结构、导出格式或存储 key 时，必须更新文档、迁移说明和测试。
 - 不提交构建产物、依赖目录、工具状态或编辑器配置。
 - 新增外部代码、图标、字体或视觉资产时，先确认许可证并更新 [NOTICE](NOTICE)。
