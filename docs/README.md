@@ -3,11 +3,10 @@
 ## 当前文档
 
 - [项目首页](../README.md)：定位、快速开始、隐私边界和路线图
-- [架构说明](architecture.md)：领域对象、画布投影、存储适配和运行边界
-- [数据格式](data-format.md)：JSON 快照、localStorage 和兼容规则
-- [迁移说明](migration-from-qpm-box.md)：旧浏览器数据、旧桌面 JSON 备份和跨 origin 迁移
+- [架构说明](architecture.md)：领域实体、画布投影、存储适配和云端备份边界
+- [Canonical Document v1](data-format.md)：唯一 JSON/localStorage 数据契约
 - [发布说明](release.md)：GitHub Pages 构建、公开首页与工作区入口
-- [开发指南](../DEVELOPMENT.md)：本地开发、测试和数据变更约定
+- [开发指南](../DEVELOPMENT.md)：本地开发、测试和 canonical 文档变更约定
 
 ## 历史材料
 
@@ -15,8 +14,9 @@
 - [交互与技术方案（历史初稿）](02-交互与技术方案.md)
 - [开发迭代计划（历史材料）](03-开发迭代计划.md)
 - [变更记录](04-变更记录.md)
+- [旧迁移说明（历史材料）](migration-from-qpm-box.md)
 
-历史材料保留设计决策和演进背景，但可能包含旧产品名、旧目录、桌面优先假设和未实现设想。当前行为以源码、测试和项目根目录 README 为准。
+历史材料保留设计决策和演进背景，但不属于当前运行时契约，可能包含旧产品名、旧目录、桌面优先假设和未实现设想。当前行为以源码、测试和项目根目录 README 为准。
 
 ## 设计资源
 

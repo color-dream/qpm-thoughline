@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import type { Edge, GraphNode, Progress, Task, TaskStatus } from "../shared/graph";
-import { nodeSize, nowIso, uid, withProgress } from "../shared/graph";
+import { nodeSize, withProgress } from "../shared/graph";
+import { newUuid, nowUtc } from "../shared/document";
 import { findFreeRect } from "../shared/layout";
 import {
   deleteEdge,
   deleteNodes,
   insertEdge,
-  insertTask,
   loadGraph,
   saveCapturedThought,
   setTaskArchived,
@@ -17,6 +17,7 @@ import {
   updateNodeText,
   updateTaskFields,
   updateTaskStatus,
+  updateDocument,
 } from "../shared/store";
 
 type Mode = "select" | "link";
@@ -36,6 +37,7 @@ export interface CtxMenuState {
 
 interface GraphState {
   loaded: boolean;
+  loadError: string | null;
   tasks: Task[];
   nodes: GraphNode[];
   edges: Edge[];
@@ -104,6 +106,7 @@ interface GraphState {
 
 export const useGraph = create<GraphState>((set, get) => ({
   loaded: false,
+  loadError: null,
   tasks: [],
   nodes: [],
   edges: [],
@@ -121,9 +124,13 @@ export const useGraph = create<GraphState>((set, get) => ({
   notificationTaskId: null,
 
   init: async () => {
-    await get().reload();
-    const first = get().tasks[0];
-    set({ loaded: true, focusTask: first?.id ?? null });
+    try {
+      await get().reload();
+      const first = get().tasks[0];
+      set({ loaded: true, loadError: null, focusTask: first?.id ?? null });
+    } catch (error) {
+      set({ loaded: false, loadError: error instanceof Error ? error.message : "数据文档无效" });
+    }
   },
 
   reload: async () => {
@@ -132,6 +139,7 @@ export const useGraph = create<GraphState>((set, get) => ({
       tasks: snap.tasks,
       nodes: snap.nodes,
       edges: snap.edges,
+      loadError: null,
       collapsed: new Set(snap.nodes.filter((n) => n.collapsed).map((n) => n.id)),
     });
   },
@@ -183,19 +191,20 @@ export const useGraph = create<GraphState>((set, get) => ({
       }
     }
     const e: Edge = {
-      id: uid("e"),
+      id: newUuid(),
       source_id: source,
       target_id: target,
       kind: k,
-      created_at: nowIso(),
+      created_at: nowUtc(),
+      updated_at: nowUtc(),
     };
     await insertEdge(e);
     set({ edges: [...get().edges, e] });
   },
 
   addFreeNode: async (x, y, text) => {
-    const ts = nowIso();
-    const id = uid("n");
+    const ts = nowUtc();
+    const id = newUuid();
     const pos = findFreeRect(get().nodes, { x: x - 100, y: y - 40 });
     const node: GraphNode = {
       id,
@@ -343,7 +352,7 @@ export const useGraph = create<GraphState>((set, get) => ({
     set({
       tasks: get().tasks.map((t) =>
         t.id === id
-          ? { ...t, meta: { ...(t.meta || {}), archived_at: nowIso() }, updated_at: nowIso() }
+          ? { ...t, archived_at: nowUtc(), updated_at: nowUtc() }
           : t,
       ),
       focusTask: get().focusTask === id ? null : get().focusTask,
@@ -355,9 +364,7 @@ export const useGraph = create<GraphState>((set, get) => ({
     set({
       tasks: get().tasks.map((t) => {
         if (t.id !== id) return t;
-        const meta = { ...(t.meta || {}) };
-        delete meta.archived_at;
-        return { ...t, meta, updated_at: nowIso() };
+        return { ...t, archived_at: null, updated_at: nowUtc() };
       }),
     });
   },
@@ -407,7 +414,7 @@ export const useGraph = create<GraphState>((set, get) => ({
     for (const id of fedIds) {
       await setThoughtHandled(id, true);
     }
-    const handledAt = nowIso();
+    const handledAt = nowUtc();
     set({
       nodes: get().nodes.map((n) => (fedIds.includes(n.id) ? { ...n, handled_at: handledAt } : n)),
     });
@@ -419,21 +426,50 @@ export const useGraph = create<GraphState>((set, get) => ({
     const st = get();
     const taskId = st.focusTask;
     const taskNode = st.nodes.find((n) => n.kind === "task" && n.ref_id === taskId);
-    const ts = nowIso();
-    const id = uid("n");
+    const ts = nowUtc();
+    const id = newUuid();
+    const edgeId = taskNode ? newUuid() : null;
     const kids = st.edges.filter((e) => taskNode && e.source_id === taskNode.id).length;
+    const desired = {
+      x: (taskNode?.x ?? 200) + (kids % 3) * 40,
+      y: (taskNode?.y ?? 200) + 220 + (kids % 2) * 40,
+    };
+    const pos = findFreeRect(st.nodes, desired);
+    await updateDocument((document) => {
+      document.outputs.push({
+        id,
+        task_id: taskId,
+        content: text,
+        created_at: ts,
+        updated_at: ts,
+      });
+      document.canvas_nodes.push({
+        id,
+        entity_type: "output",
+        entity_id: id,
+        position: pos,
+        size: { width: 200, height: 88 },
+        collapsed: false,
+        created_at: ts,
+        updated_at: ts,
+      });
+      if (taskNode && edgeId) {
+        document.edges.push({
+          id: edgeId,
+          source_node_id: taskNode.id,
+          target_node_id: id,
+          kind: "child",
+          created_at: ts,
+          updated_at: ts,
+        });
+      }
+    });
     const node: GraphNode = {
       id,
       kind: "ai",
       ref_id: taskId,
-      ...(() => {
-        // 贴回产出:固定偏移若与现有卡重叠,挪到最近空位
-        const desired = {
-          x: (taskNode?.x ?? 200) + (kids % 3) * 40,
-          y: (taskNode?.y ?? 200) + 220 + (kids % 2) * 40,
-        };
-        return findFreeRect(st.nodes, desired);
-      })(),
+      x: pos.x,
+      y: pos.y,
       width: 200,
       height: 88,
       collapsed: false,
@@ -441,43 +477,45 @@ export const useGraph = create<GraphState>((set, get) => ({
       updated_at: ts,
       text,
     };
-    const { insertNode, insertEdge } = await import("../shared/store");
-    await insertNode(node, text);
-    if (taskNode) {
-      await insertEdge({
-        id: uid("e"),
-        source_id: taskNode.id,
-        target_id: id,
-        kind: "child",
-        created_at: ts,
-      });
-    }
+    const edge: Edge | null = taskNode && edgeId
+      ? { id: edgeId, source_id: taskNode.id, target_id: id, kind: "child", created_at: ts, updated_at: ts }
+      : null;
     set({
       nodes: [...st.nodes, node],
-      edges: taskNode
-        ? [
-            ...st.edges,
-            { id: uid("e"), source_id: taskNode.id, target_id: id, kind: "child", created_at: ts },
-          ]
-        : st.edges,
+      edges: edge ? [...st.edges, edge] : st.edges,
       selection: new Set([id]),
     });
     return id;
   },
 
   createTask: async (title, goal = "") => {
-    const id = uid("task");
-    const t = await insertTask({
+    const id = newUuid();
+    const nodeId = newUuid();
+    const ts = nowUtc();
+    const task: Task = {
       id,
       title,
       goal,
       status: "running",
-      source: "manual",
-      meta: {},
+      archived_at: null,
+      created_at: ts,
+      updated_at: ts,
+    };
+    await updateDocument((document) => {
+      document.tasks.push(task);
+      document.canvas_nodes.push({
+        id: nodeId,
+        entity_type: "task",
+        entity_id: id,
+        position: { x: 120, y: 120 },
+        size: { width: 240, height: 100 },
+        collapsed: false,
+        created_at: ts,
+        updated_at: ts,
+      });
     });
-    const ts = nowIso();
     const node: GraphNode = {
-      id: uid("n_task"),
+      id: nodeId,
       kind: "task",
       ref_id: id,
       x: 120,
@@ -488,10 +526,8 @@ export const useGraph = create<GraphState>((set, get) => ({
       created_at: ts,
       updated_at: ts,
     };
-    const { insertNode } = await import("../shared/store");
-    await insertNode(node);
     set({
-      tasks: [...get().tasks, t],
+      tasks: [...get().tasks, task],
       nodes: [...get().nodes, node],
       focusTask: id,
     });
@@ -502,7 +538,7 @@ export const useGraph = create<GraphState>((set, get) => ({
     await updateNodeText(nodeId, text);
     set({
       nodes: get().nodes.map((n) =>
-        n.id === nodeId ? { ...n, text, updated_at: nowIso() } : n,
+        n.id === nodeId ? { ...n, text, updated_at: nowUtc() } : n,
       ),
     });
   },
@@ -520,7 +556,7 @@ export const useGraph = create<GraphState>((set, get) => ({
   editTaskFields: async (taskId, fields) => {
     await updateTaskFields(taskId, fields);
     set({
-      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...fields, updated_at: nowIso() } : t)),
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, ...fields, updated_at: nowUtc() } : t)),
     });
   },
 
@@ -541,10 +577,44 @@ export const useGraph = create<GraphState>((set, get) => ({
           }
         }
       }
-      await deleteNodes([...subtreeIds]);
     }
-    const { deleteTaskRow } = await import("../shared/store");
-    await deleteTaskRow(taskId);
+
+    await updateDocument((document) => {
+      const canonicalTaskNode = document.canvas_nodes.find(
+        (node) => node.entity_type === "task" && node.entity_id === taskId,
+      );
+      const removedCanvasIds = new Set<string>();
+      if (canonicalTaskNode) {
+        const pending = [canonicalTaskNode.id];
+        while (pending.length) {
+          const id = pending.pop()!;
+          if (removedCanvasIds.has(id)) continue;
+          removedCanvasIds.add(id);
+          for (const edge of document.edges) {
+            if (edge.source_node_id === id && edge.kind === "child" && !removedCanvasIds.has(edge.target_node_id)) {
+              pending.push(edge.target_node_id);
+            }
+          }
+        }
+      }
+      const removedThoughtIds = new Set(
+        document.canvas_nodes
+          .filter((node) => removedCanvasIds.has(node.id) && node.entity_type === "thought")
+          .map((node) => node.entity_id),
+      );
+      const removedOutputIds = new Set(
+        document.canvas_nodes
+          .filter((node) => removedCanvasIds.has(node.id) && node.entity_type === "output")
+          .map((node) => node.entity_id),
+      );
+      document.tasks = document.tasks.filter((task) => task.id !== taskId);
+      document.thoughts = document.thoughts.filter((thought) => !removedThoughtIds.has(thought.id));
+      document.outputs = document.outputs.filter((output) => !removedOutputIds.has(output.id));
+      document.canvas_nodes = document.canvas_nodes.filter((node) => !removedCanvasIds.has(node.id));
+      document.edges = document.edges.filter(
+        (edge) => !removedCanvasIds.has(edge.source_node_id) && !removedCanvasIds.has(edge.target_node_id),
+      );
+    });
 
     const after = get();
     const removedIds = subtreeIds;

@@ -1,174 +1,61 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { importGraphJson, parseGraphJson } from "./export";
-import { clearLocalData, loadGraph } from "./store";
-import type { GraphSnapshot } from "./graph";
+import { importGraphJson, parseDocumentJson } from "./export";
+import { createEmptyDocument } from "./document";
+import { clearLocalData, loadDocument, loadGraph } from "./store";
 
-function seedLocalStorage(snap: Partial<GraphSnapshot>, key = "qpm-thoughtline-graph-v1") {
-  localStorage.setItem(
-    key,
-    JSON.stringify({ tasks: [], nodes: [], edges: [], ...snap }),
-  );
+const taskId = "11111111-1111-4111-8111-111111111111";
+const createdAt = "2026-01-01T00:00:00.000Z";
+
+function documentWithTask(title: string) {
+  const document = createEmptyDocument(createdAt);
+  document.document_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  document.tasks.push({
+    id: taskId,
+    title,
+    goal: "",
+    status: "running",
+    archived_at: null,
+    created_at: createdAt,
+    updated_at: createdAt,
+  });
+  return document;
 }
 
 beforeEach(() => {
   localStorage.clear();
 });
 
-describe("parseGraphJson", () => {
-  it("rejects invalid payloads", () => {
-    expect(parseGraphJson("not json")).toBeNull();
-    expect(parseGraphJson("{}")).toBeNull();
-    expect(parseGraphJson('{"tasks":1,"nodes":[],"edges":[]}')).toBeNull();
+describe("canonical JSON import", () => {
+  it("rejects malformed, old, and unknown-version payloads", () => {
+    expect(parseDocumentJson("not json")).toBeNull();
+    expect(parseDocumentJson(JSON.stringify({ tasks: [], nodes: [], edges: [] }))).toBeNull();
+    expect(parseDocumentJson(JSON.stringify({ ...documentWithTask("x"), schema_version: 2 }))).toBeNull();
+    expect(parseDocumentJson(JSON.stringify({ ...documentWithTask("x"), format: "qpm-thoughtline-graph" }))).toBeNull();
   });
 
-  it("accepts an unversioned snapshot for backwards compatibility", () => {
-    const raw = JSON.stringify({ tasks: [], nodes: [], edges: [] });
-    expect(parseGraphJson(raw)).toEqual({ tasks: [], nodes: [], edges: [] });
+  it("replaces the complete local document atomically", async () => {
+    const incoming = documentWithTask("恢复后的任务");
+    const result = await importGraphJson(JSON.stringify(incoming));
+    expect(result).toMatchObject({ document_id: incoming.document_id, tasks: 1, thoughts: 0, outputs: 0 });
+    expect((await loadDocument()).tasks[0].title).toBe("恢复后的任务");
+    expect((await loadGraph()).tasks[0].title).toBe("恢复后的任务");
   });
 
-  it("accepts current and legacy backup format markers", () => {
-    expect(
-      parseGraphJson(JSON.stringify({ format: "qpm-box-graph", tasks: [], nodes: [], edges: [] })),
-    ).toEqual({ tasks: [], nodes: [], edges: [] });
-    expect(
-      parseGraphJson(JSON.stringify({ format: "qpm-thoughtline-graph", tasks: [], nodes: [], edges: [] })),
-    ).toEqual({ tasks: [], nodes: [], edges: [] });
-    expect(
-      parseGraphJson(JSON.stringify({ format: "other-app", tasks: [], nodes: [], edges: [] })),
-    ).toBeNull();
+  it("does not change local data when validation fails", async () => {
+    await importGraphJson(JSON.stringify(documentWithTask("保留的数据")));
+    const before = await loadDocument();
+    expect(await importGraphJson(JSON.stringify({ ...before, schema_version: 99 }))).toBeNull();
+    expect((await loadDocument()).tasks[0].title).toBe("保留的数据");
   });
 
-  it("migrates a legacy browser snapshot on first read", async () => {
-    seedLocalStorage(
-      {
-        tasks: [
-          {
-            id: "legacy-task",
-            title: "旧数据",
-            goal: "",
-            status: "running",
-            source: "manual",
-            created_at: "2026-01-01",
-            updated_at: "2026-01-01",
-            meta: {},
-          },
-        ],
-        nodes: [],
-        edges: [],
-      },
-      "qpm-box-graph-v1",
-    );
-
-    expect((await loadGraph()).tasks[0]?.title).toBe("旧数据");
-    expect(localStorage.getItem("qpm-thoughtline-graph-v1")).not.toBeNull();
-  });
-});
-
-describe("importGraphJson merge rules", () => {
-  it("adds incoming items not present locally", async () => {
-    seedLocalStorage({ tasks: [], nodes: [], edges: [] });
-    const incoming = {
-      tasks: [
-        {
-          id: "t1",
-          title: "新任务",
-          goal: "",
-          status: "running",
-          source: "manual",
-          created_at: "2026-01-01",
-          updated_at: "2026-01-01",
-          meta: {},
-        },
-      ],
-      nodes: [],
-      edges: [],
-    };
-    const res = await importGraphJson(JSON.stringify(incoming));
-    expect(res).toEqual({ tasks: 1, nodes: 0, edges: 0 });
-    const snap = await loadGraph();
-    expect(snap.tasks.map((t) => t.title)).toEqual(["新任务"]);
-  });
-
-  it("keeps local when incoming is older, overwrites when newer", async () => {
-    seedLocalStorage({
-      tasks: [
-        {
-          id: "t1",
-          title: "本地较新",
-          goal: "",
-          status: "running",
-          source: "manual",
-          created_at: "2026-01-01",
-          updated_at: "2026-01-02",
-          meta: {},
-        },
-      ],
-      nodes: [],
-      edges: [],
-    });
-    const older = await importGraphJson(
-      JSON.stringify({
-        tasks: [
-          {
-            id: "t1",
-            title: "导入较旧",
-            goal: "",
-            status: "done",
-            source: "manual",
-            created_at: "2026-01-01",
-            updated_at: "2026-01-01",
-            meta: {},
-          },
-        ],
-        nodes: [],
-        edges: [],
-      }),
-    );
-    expect(older).not.toBeNull();
-    expect((await loadGraph()).tasks[0].title).toBe("本地较新");
-
-    const newer = await importGraphJson(
-      JSON.stringify({
-        tasks: [
-          {
-            id: "t1",
-            title: "导入更新",
-            goal: "",
-            status: "done",
-            source: "manual",
-            created_at: "2026-01-01",
-            updated_at: "2026-01-03",
-            meta: {},
-          },
-        ],
-        nodes: [],
-        edges: [],
-      }),
-    );
-    expect(newer).not.toBeNull();
-    expect((await loadGraph()).tasks[0].title).toBe("导入更新");
-  });
-
-  it("clearLocalData empties the snapshot", async () => {
-    seedLocalStorage({
-      tasks: [
-        {
-          id: "t1",
-          title: "x",
-          goal: "",
-          status: "running",
-          source: "manual",
-          created_at: "2026-01-01",
-          updated_at: "2026-01-01",
-          meta: {},
-        },
-      ],
-      nodes: [],
-      edges: [],
-    });
-    expect((await loadGraph()).tasks).toHaveLength(1);
+  it("initializes a new canonical document and clears only the new store", async () => {
+    const document = await loadDocument();
+    expect(document.tasks).toEqual([]);
+    expect(localStorage.getItem("qpm-thoughtline-document")).not.toBeNull();
+    localStorage.setItem("qpm-thoughtline-graph-v1", "legacy");
     clearLocalData();
-    expect((await loadGraph()).tasks).toHaveLength(0);
+    expect((await loadDocument()).tasks).toEqual([]);
+    expect(localStorage.getItem("qpm-thoughtline-graph-v1")).toBe("legacy");
   });
 });
