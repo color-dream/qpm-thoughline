@@ -1,135 +1,158 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeSnapshot, centerOf, nodeSize, uid, withProgress, progressFromMeta, progressOf } from "./graph";
-import type { GraphSnapshot, GraphNode } from "./graph";
+import {
+  DOCUMENT_FORMAT,
+  DOCUMENT_SCHEMA_VERSION,
+  createEmptyDocument,
+  validateDocument,
+} from "./document";
+import { centerOf, nodeSize, progressOf, withProgress, type GraphNode } from "./graph";
 
-const validTask = {
-  id: "task_1",
-  title: "T",
-  goal: "",
-  status: "running" as const,
-  source: "manual",
-  created_at: "2026-01-01",
-  updated_at: "2026-01-01",
-  meta: {},
-};
+const taskId = "11111111-1111-4111-8111-111111111111";
+const thoughtId = "22222222-2222-4222-8222-222222222222";
+const taskCanvasId = "33333333-3333-4333-8333-333333333333";
+const thoughtCanvasId = "44444444-4444-4444-8444-444444444444";
+const edgeId = "55555555-5555-4555-8555-555555555555";
+const createdAt = "2026-01-01T00:00:00.000Z";
+const updatedAt = "2026-01-02T00:00:00.000Z";
 
-const validNode = {
-  id: "n_1",
-  kind: "thought" as const,
-  ref_id: "task_1",
-  x: 0,
-  y: 0,
-  width: 200,
-  height: 88,
-  collapsed: false,
-  created_at: "2026-01-01",
-  updated_at: "2026-01-01",
-};
+function validDocument() {
+  return {
+    format: DOCUMENT_FORMAT,
+    schema_version: DOCUMENT_SCHEMA_VERSION,
+    document_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    revision: 3,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    tasks: [
+      {
+        id: taskId,
+        title: "任务",
+        goal: "目标",
+        status: "running",
+        archived_at: null,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      },
+    ],
+    thoughts: [
+      {
+        id: thoughtId,
+        task_id: taskId,
+        content: "想法",
+        progress: "todo",
+        handled_at: null,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      },
+    ],
+    outputs: [],
+    canvas_nodes: [
+      {
+        id: taskCanvasId,
+        entity_type: "task",
+        entity_id: taskId,
+        position: { x: 0, y: 0 },
+        size: { width: 240, height: 100 },
+        collapsed: false,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      },
+      {
+        id: thoughtCanvasId,
+        entity_type: "thought",
+        entity_id: thoughtId,
+        position: { x: 300, y: 0 },
+        size: { width: 200, height: 88 },
+        collapsed: false,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      },
+    ],
+    edges: [
+      {
+        id: edgeId,
+        source_node_id: taskCanvasId,
+        target_node_id: thoughtCanvasId,
+        kind: "child",
+        created_at: createdAt,
+        updated_at: updatedAt,
+      },
+    ],
+  };
+}
 
-const validEdge = {
-  id: "e_1",
-  source_id: "n_1",
-  target_id: "n_1",
-  kind: "related" as const,
-  created_at: "2026-01-01",
-};
-
-describe("sanitizeSnapshot", () => {
-  it("keeps a fully valid snapshot", () => {
-    const snap: GraphSnapshot = {
-      tasks: [validTask],
-      nodes: [validNode],
-      edges: [validEdge],
-    };
-    const out = sanitizeSnapshot(snap);
-    expect(out.tasks).toHaveLength(1);
-    expect(out.nodes).toHaveLength(1);
-    expect(out.edges).toHaveLength(1);
+describe("canonical document validation", () => {
+  it("creates an empty versioned document", () => {
+    const document = createEmptyDocument(createdAt);
+    expect(document).toMatchObject({
+      format: DOCUMENT_FORMAT,
+      schema_version: 1,
+      revision: 0,
+      created_at: createdAt,
+      updated_at: createdAt,
+      tasks: [],
+      thoughts: [],
+      outputs: [],
+      canvas_nodes: [],
+      edges: [],
+    });
+    expect(document.document_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4/);
+    expect(validateDocument(document)).toEqual(document);
   });
 
-  it("drops malformed records instead of throwing", () => {
-    const snap = {
-      tasks: [validTask, { ...validTask, id: "" }, { ...validTask, status: "bogus" }, null as never],
-      nodes: [
-        validNode,
-        { ...validNode, id: "" },
-        { ...validNode, kind: "ghost" },
-        { ...validNode, x: Number.NaN },
-        // task node pointing at a missing task
-        { ...validNode, id: "n_task", kind: "task", ref_id: "nope" },
-      ],
-      edges: [
-        validEdge,
-        { ...validEdge, id: "" },
-        { ...validEdge, kind: "sequence_x" },
-        // dangling endpoints after bad nodes were dropped
-        { ...validEdge, id: "e_2", source_id: "ghost", target_id: "n_1" },
-      ],
-    } as unknown as GraphSnapshot;
-    const out = sanitizeSnapshot(snap);
-    expect(out.tasks.map((t) => t.id)).toEqual(["task_1"]);
-    expect(out.nodes.map((n) => n.id)).toEqual(["n_1"]);
-    expect(out.edges.map((e) => e.id)).toEqual(["e_1"]);
+  it("accepts the complete canonical fixture", () => {
+    expect(validateDocument(validDocument())).toMatchObject({
+      document_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      tasks: [{ id: taskId }],
+      thoughts: [{ id: thoughtId }],
+      edges: [{ id: edgeId }],
+    });
   });
 
-  it("tolerates non-array fields", () => {
-    const out = sanitizeSnapshot({ tasks: null, nodes: undefined, edges: 42 } as never);
-    expect(out).toEqual({ tasks: [], nodes: [], edges: [] });
+  it("rejects old formats, unknown schema versions, and extra fields", () => {
+    expect(() => validateDocument({ tasks: [], nodes: [], edges: [] })).toThrow();
+    expect(() => validateDocument({ ...validDocument(), format: "qpm-thoughtline-graph" })).toThrow();
+    expect(() => validateDocument({ ...validDocument(), schema_version: 2 })).toThrow();
+    expect(() => validateDocument({ ...validDocument(), legacy: true })).toThrow();
+  });
+
+  it("rejects duplicate IDs and dangling references", () => {
+    const duplicate = validDocument();
+    duplicate.thoughts.push({ ...duplicate.thoughts[0] });
+    expect(() => validateDocument(duplicate)).toThrow(/IDs must be unique/);
+
+    const dangling = validDocument();
+    dangling.thoughts[0].task_id = "99999999-9999-4999-8999-999999999999";
+    expect(() => validateDocument(dangling)).toThrow(/unknown task/);
   });
 });
 
-describe("geometry helpers", () => {
-  it("nodeSize defaults thought-like nodes", () => {
-    expect(nodeSize({ ...validNode, width: null, height: null })).toEqual({ w: 200, h: 88 });
-    expect(nodeSize({ ...validNode, kind: "task", width: null, height: null })).toEqual({ w: 240, h: 100 });
+describe("canvas view helpers", () => {
+  const node: GraphNode = {
+    id: thoughtCanvasId,
+    kind: "thought",
+    ref_id: taskId,
+    x: 10,
+    y: 20,
+    width: 200,
+    height: 88,
+    collapsed: false,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    text: "想法",
+    handled_at: null,
+    progress: "todo",
+  };
+
+  it("uses explicit geometry and center", () => {
+    expect(nodeSize(node)).toEqual({ w: 200, h: 88 });
+    expect(centerOf(node)).toEqual({ x: 110, y: 64 });
   });
 
-  it("centerOf returns node center", () => {
-    expect(centerOf(validNode)).toEqual({ x: 100, y: 44 });
-  });
-});
-
-describe("uid", () => {
-  it("is prefixed and unique-ish", () => {
-    const a = uid("e");
-    const b = uid("e");
-    expect(a.startsWith("e_")).toBe(true);
-    expect(a).not.toBe(b);
-  });
-});
-
-describe("progress", () => {
-  const node = (extra: Partial<GraphNode> = {}): GraphNode => ({ ...validNode, ...extra });
-
-  it("progressOf defaults unmarked nodes to todo", () => {
-    expect(progressOf(node({}))).toBe("todo");
-    expect(progressOf(node({ progress: "doing" }))).toBe("doing");
-    expect(progressOf(node({ progress: "done" }))).toBe("done");
-  });
-
-  it("done implies handled_at, keeping an existing one", () => {
-    const a = withProgress(node({}), "done");
-    expect(a.progress).toBe("done");
-    expect(a.handled_at).toBeTruthy();
-    const b = withProgress(node({ handled_at: "2026-01-02" }), "done");
-    expect(b.handled_at).toBe("2026-01-02");
-  });
-
-  it("todo/doing never set or revive handled_at", () => {
-    for (const p of ["todo", "doing"] as const) {
-      const out = withProgress(node({}), p);
-      expect(out.progress).toBe(p);
-      expect(out.handled_at).toBeUndefined();
-    }
-    const revived = withProgress(node({ handled_at: "2026-01-02" }), "doing");
-    expect(revived.handled_at).toBe("2026-01-02");
-  });
-
-  it("progressFromMeta reads valid values only", () => {
-    expect(progressFromMeta({ progress: "doing" })).toBe("doing");
-    expect(progressFromMeta({ handled_at: "x" })).toBeUndefined();
-    expect(progressFromMeta({ progress: "bogus" })).toBeUndefined();
-    expect(progressFromMeta(null)).toBeUndefined();
-    expect(progressFromMeta("nope")).toBeUndefined();
+  it("keeps progress and handled state together", () => {
+    const done = withProgress(node, "done");
+    expect(done.progress).toBe("done");
+    expect(done.handled_at).toBeTruthy();
+    expect(progressOf({ ...node, progress: undefined })).toBe("todo");
   });
 });

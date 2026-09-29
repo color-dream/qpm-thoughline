@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { applyTheme } from "../../main";
 import {
   dataDirHint,
@@ -32,6 +33,7 @@ export default function Settings({
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [pendingImport, setPendingImport] = useState<string | null>(null);
   const usage = storageUsage();
   const lastExport = lastExportedAt();
 
@@ -149,7 +151,7 @@ export default function Settings({
         <div className="set-row">
           <div>
             <div className="k">导出完整备份</div>
-            <div className="d">JSON：任务 + 节点 + 边</div>
+            <div className="d">JSON canonical document：任务、想法、产出、画布投影与边</div>
           </div>
           <button
             type="button"
@@ -164,7 +166,7 @@ export default function Settings({
         <div className="set-row">
           <div>
             <div className="k">导入备份</div>
-            <div className="d">按 id 合并，较新覆盖</div>
+            <div className="d">替换本地文档；导入前会完整校验，失败不会改变当前数据</div>
           </div>
           <div className="set-actions">
             <input
@@ -176,13 +178,7 @@ export default function Settings({
                 const f = e.target.files?.[0];
                 if (!f) return;
                 const text = await f.text();
-                const res = await importGraphJson(text);
-                if (res) {
-                  await reload();
-                  flash(`已导入 ${res.tasks} 任务 / ${res.nodes} 节点`);
-                } else {
-                  flash("导入失败：不是有效的念头备份");
-                }
+                setPendingImport(text);
                 e.target.value = "";
               }}
             />
@@ -246,6 +242,26 @@ export default function Settings({
           <div className="set-val">v0.1.0 · 网页版</div>
         </div>
       </section>
+
+      {pendingImport && (
+        <ConfirmDialog
+          open
+          title="替换本地文档"
+          message="导入后会完整替换当前本地文档，当前数据不会自动合并。确认继续？"
+          onCancel={() => setPendingImport(null)}
+          onConfirm={async () => {
+            const raw = pendingImport;
+            const res = await importGraphJson(raw);
+            setPendingImport(null);
+            if (res) {
+              await reload();
+              flash(`已恢复文档 ${res.tasks} 任务 / ${res.thoughts} 想法 / ${res.outputs} 产出`);
+            } else {
+              flash("恢复失败：canonical 文档校验未通过");
+            }
+          }}
+        />
+      )}
 
       <style>{css}</style>
     </div>

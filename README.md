@@ -32,8 +32,8 @@
 - 未处理状态、进度标记、任务完成提醒
 - 将整理后的文本复制到剪贴板，再手动交给任意 AI
 - 单任务 Markdown 导出
-- JSON 备份导入导出，按 ID 合并、较新数据覆盖
-- 从旧 `qpm-box` 浏览器快照和备份格式迁移
+- canonical JSON 文档导出与完整替换恢复
+- 数据正文可直接作为未来云端全量备份
 
 它目前不是：
 
@@ -68,7 +68,7 @@ npm run preview
 - `/`：公开产品首页，用于介绍、隐私边界和搜索收录
 - `/workspace/`：本地工作区，数据保存在当前浏览器，页面禁止搜索引擎收录
 
-首次进入工作区不会生成示例任务或节点；可以从左侧新建任务，或在空画布上记录第一个想法。已有浏览器快照会继续读取。
+首次进入工作区会在 `qpm-thoughtline-document` 下创建空的 canonical 文档；旧浏览器 key 不读取。可以从左侧新建任务，或在空画布上记录第一个想法。
 
 
 Web 版本把数据保存在当前浏览器 origin 的 `localStorage` 中。浏览器通常限制在约 5 MB，清理站点数据也可能删除内容。设置页提供完整 JSON 导出，请在跨设备、清理浏览器或升级前先备份。
@@ -83,8 +83,8 @@ Web 版本把数据保存在当前浏览器 origin 的 `localStorage` 中。浏�
 
 - [文档索引](docs/README.md)
 - [架构说明](docs/architecture.md)
-- [数据格式与兼容策略](docs/data-format.md)
-- [从 qpm-box 迁移](docs/migration-from-qpm-box.md)
+- [Canonical Document v1](docs/data-format.md)
+- [旧迁移说明（历史材料）](docs/migration-from-qpm-box.md)
 - [开发指南](DEVELOPMENT.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全政策](SECURITY.md)

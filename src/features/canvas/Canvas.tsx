@@ -143,7 +143,7 @@ export default function Canvas() {
         .filter((n) => {
           if (n.kind !== "task") return false;
           const t = tasks.find((x) => x.id === n.ref_id);
-          return !!t && (t.status === "done" || !!t.meta?.archived_at);
+          return !!t && (t.status === "done" || !!t.archived_at);
         })
         .map((n) => n.id),
     );

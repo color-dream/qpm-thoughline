@@ -1,53 +1,137 @@
-# 数据格式与兼容策略
+# Canonical Document v1
 
-## JSON 备份
+`qpm-thoughtline` 只读写一种数据文档：`qpm-thoughtline-document`，`schema_version` 固定为 `1`。当前版本不兼容旧的 `qpm-box`、`qpm-thoughtline-graph-v1`、裸 `GraphSnapshot` 或旧字段别名；旧 localStorage key 不读取、不迁移、不删除。
 
-当前导出格式：
+## 文档结构
 
 ```json
 {
-  "format": "qpm-thoughtline-graph",
-  "version": 1,
-  "exported_at": "2026-09-22T00:00:00.000Z",
+  "format": "qpm-thoughtline-document",
+  "schema_version": 1,
+  "document_id": "550e8400-e29b-41d4-a716-446655440000",
+  "revision": 0,
+  "created_at": "2026-09-24T09:00:00.000Z",
+  "updated_at": "2026-09-24T09:00:00.000Z",
   "tasks": [],
-  "nodes": [],
+  "thoughts": [],
+  "outputs": [],
+  "canvas_nodes": [],
   "edges": []
 }
 ```
 
-`tasks`、`nodes` 和 `edges` 是完整快照。导入时按 ID 合并：任务和节点使用 `updated_at` 判断较新值，边按 ID 去重。导入内容会经过快照结构清理，非法记录和悬空边不会进入运行时状态。
+`format`、`schema_version`、`document_id`、`revision`、文档时间和五个集合都是必填字段。所有时间必须为带毫秒、以 `Z` 结尾的 UTC RFC3339 字符串。所有 ID 都是 UUID v4。业务空值统一为 `null`。
 
-当前导入器也接受：
+`revision` 在每次本地成功写入时递增。`document_id` 在文档创建后保持不变。导出时间、应用版本、云端 `backup_id` 等传输元数据不进入 canonical 文档正文。
 
-- 无 `format` 字段的早期快照
-- `format: "qpm-box-graph"` 的旧备份
-- `format: "qpm-thoughtline-graph"` 的当前备份
+## 实体
 
-新导出只使用 `qpm-thoughtline-graph`，文件名为 `qpm-thoughtline-backup-<timestamp>.json`。
+### `tasks`
 
-## 浏览器存储
+```json
+{
+  "id": "uuid",
+  "title": "任务名称",
+  "goal": "目标、约束和验收标准",
+  "status": "running",
+  "archived_at": null,
+  "created_at": "RFC3339 UTC",
+  "updated_at": "RFC3339 UTC"
+}
+```
 
-当前 key：
+`status` 只能是 `draft`、`running`、`waiting_review`、`done`、`cancelled`。归档使用正式字段 `archived_at`，未归档为 `null`。
 
-- `qpm-thoughtline-graph-v1`：快照
-- `qpm-thoughtline-last-export`：最近一次导出时间
-- `qpm-thoughtline-theme-v1`：主题
+### `thoughts`
 
-首次读取时，如果新 key 不存在，应用会从旧 key 迁移：
+```json
+{
+  "id": "uuid",
+  "task_id": null,
+  "content": "想法正文",
+  "progress": "todo",
+  "handled_at": null,
+  "created_at": "RFC3339 UTC",
+  "updated_at": "RFC3339 UTC"
+}
+```
 
-- `qpm-box-graph-v1`
-- `qpm-box-last-export`
-- `qp-theme`
+`task_id` 为空表示想法池内容。`progress` 始终存在，取 `todo`、`doing`、`done`。`handled_at` 未处理时为 `null`。
 
-清空本地数据会同时删除新旧 key。迁移是复制到新 key，不会主动删除旧 key，以便旧版本仍能读取；用户确认新版本运行正常后可以手动清除旧站点数据。
+### `outputs`
 
-## 旧桌面数据迁移
+```json
+{
+  "id": "uuid",
+  "task_id": null,
+  "content": "AI 产出正文",
+  "created_at": "RFC3339 UTC",
+  "updated_at": "RFC3339 UTC"
+}
+```
 
-当前项目只支持浏览器 localStorage，不会读取 SQLite 或扫描桌面应用数据目录。仍使用旧桌面版的用户，请先在旧版本设置页导出完整 JSON 备份，再在 Web 版设置页导入；确认任务、节点、边和处理状态后保留备份。旧 SQLite 文件可作为迁移前的原始档案留存，但不能直接导入 Web 版。早期 SQLite v1 曾覆盖同一任务下的多条想法，旧版 v2 migration 只能尽力重建历史数据；已被覆盖的内容无法恢复。
+AI 产出是独立领域实体，不携带想法的进度或处理字段。
 
-## 版本策略
+### `canvas_nodes`
 
-- 修改字段但仍能读取旧结构时，递增文档中的格式版本并保留读取兼容。
-- 删除字段或改变语义时，先提供迁移函数和测试夹具。
-- 不在没有备份/恢复说明的情况下更换 localStorage key。
-- 导出格式是用户数据接口，不能因为内部 UI 重构而随意改名。
+```json
+{
+  "id": "uuid",
+  "entity_type": "task",
+  "entity_id": "uuid",
+  "position": { "x": 120, "y": 240 },
+  "size": { "width": 240, "height": 100 },
+  "collapsed": false,
+  "created_at": "RFC3339 UTC",
+  "updated_at": "RFC3339 UTC"
+}
+```
+
+`entity_type` 取 `task`、`thought`、`output`。画布节点只保存实体投影和几何，不保存正文。每个实体最多一个画布投影；非任务投影的 `collapsed` 必须为 `false`。
+
+### `edges`
+
+```json
+{
+  "id": "uuid",
+  "source_node_id": "uuid",
+  "target_node_id": "uuid",
+  "kind": "child",
+  "created_at": "RFC3339 UTC",
+  "updated_at": "RFC3339 UTC"
+}
+```
+
+`kind` 取 `child`、`related`、`sequence`。所有端点必须引用存在的 `canvas_nodes`，禁止自环和重复端点关系。`child` 的源必须是任务投影，目标必须是想法或产出投影。
+
+## 校验和写入
+
+所有入口都经过同一流程：
+
+```text
+JSON parse -> format/version -> 字段 -> ID -> 引用 -> 关系 -> 一次性写入
+```
+
+未知字段、缺失字段、非法类型、重复 ID、悬空引用、非法枚举、非法时间、非法边方向都会拒绝。校验失败不会写入部分数据，也不会静默清空当前文档。
+
+## 本地存储
+
+当前唯一 key：
+
+```text
+qpm-thoughtline-document
+```
+
+localStorage 保存完整 canonical document。首次读取不存在时创建空文档。损坏文档会抛出校验错误，用户需要显式清空后重新开始；程序不会读取任何旧 key。
+
+## 导入和导出
+
+JSON 文件正文就是 canonical document，不额外包旧的 `version` 或 `exported_at` envelope。
+
+导出文件可直接作为云端备份正文。导入是 `replace` 语义：先完整校验，成功后整体替换本地文档；失败时本地数据不变。当前不提供按 ID 的隐式 merge。未来多端合并应使用独立的 ChangeSet/sync 协议。
+
+Markdown 是不可逆的阅读、复盘和 AI 协作摘要，不用于恢复、迁移或云端备份。
+
+## 云端备份边界
+
+第一阶段云端只保存 canonical document 的完整版本。服务端可以额外保存 `backup_id`、上传时间、hash、大小和存储位置，但这些字段不写回用户文档。实时多端同步的设备、操作日志、tombstone 和服务端 revision 不属于本备份格式。

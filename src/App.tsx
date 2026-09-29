@@ -4,6 +4,7 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import Canvas from "./features/canvas/Canvas";
 import Settings from "./features/settings/Settings";
 import { progressOf } from "./shared/graph";
+import { clearLocalData } from "./shared/store";
 import { useGraph, type CtxMenuItem } from "./store/graphStore";
 
 type Toast = { id: number; title: string; sub?: string };
@@ -107,6 +108,7 @@ export default function App() {
   const tasks = useGraph((s) => s.tasks);
   const nodes = useGraph((s) => s.nodes);
   const loaded = useGraph((s) => s.loaded);
+  const loadError = useGraph((s) => s.loadError);
   const init = useGraph((s) => s.init);
   const capture = useGraph((s) => s.capture);
   const createTask = useGraph((s) => s.createTask);
@@ -240,7 +242,7 @@ export default function App() {
   }, [pendingCapture, openCapture]);
 
   const freeNodes = nodes.filter((n) => n.kind === "free");
-  const isArchived = (t: { meta: Record<string, unknown> }) => !!t.meta?.archived_at;
+  const isArchived = (t: { archived_at: string | null }) => !!t.archived_at;
   const liveTasks = tasks.filter((t) => !isArchived(t));
   const archivedTasks = tasks.filter((t) => isArchived(t));
 
@@ -443,7 +445,7 @@ export default function App() {
                         <div key={t.id} className="pool-item archive-item">
                           <div className="ai-title">{t.title}</div>
                           <div className="meta">
-                            {new Date(String(t.meta.archived_at)).toLocaleString("zh-CN")} 归档
+                            {new Date(String(t.archived_at)).toLocaleString("zh-CN")} 归档
                           </div>
                           <div className="archive-actions">
                             <button
@@ -461,6 +463,21 @@ export default function App() {
                 </div>
               )}
             </>
+          ) : loadError ? (
+            <div className="data-error">
+              <strong>本地数据文档无效</strong>
+              <span>{loadError}</span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  clearLocalData();
+                  void init();
+                }}
+              >
+                清空并创建新文档
+              </button>
+            </div>
           ) : (
             <div className="loading">加载中…</div>
           )}
@@ -774,6 +791,18 @@ const css = `
   color: var(--text-3);
   font-size: 13px;
 }
+.data-error {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--text-2);
+  text-align: center;
+}
+.data-error strong { color: var(--danger); font-size: 15px; }
+.data-error span { max-width: 520px; color: var(--text-3); font-size: 12px; line-height: 1.6; }
 .pool-panel {
   position: absolute;
   top: 56px;

@@ -1,6 +1,7 @@
-import type { GraphSnapshot, Task } from "./graph";
+import type { DocumentCanvasNode, DocumentOutput, DocumentThought, ThoughtlineDocument } from "./document";
+import { validateDocument } from "./document";
 import { buildTimelineSummary } from "./feed";
-import { loadGraph } from "./store";
+import { loadDocument, markExported, replaceDocument } from "./store";
 
 export function downloadFile(filename: string, content: string, mime = "text/plain") {
   const blob = new Blob([content], { type: mime + ";charset=utf-8" });
@@ -12,34 +13,44 @@ export function downloadFile(filename: string, content: string, mime = "text/pla
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function markdownItems(
+  document: ThoughtlineDocument,
+  taskNode: DocumentCanvasNode | undefined,
+): Array<{ time: string; kind: string; text: string }> {
+  if (!taskNode) return [];
+  const nodesById = new Map(document.canvas_nodes.map((node) => [node.id, node]));
+  const thoughtsById = new Map(document.thoughts.map((thought) => [thought.id, thought]));
+  const outputsById = new Map(document.outputs.map((output) => [output.id, output]));
+  return document.edges
+    .filter((edge) => edge.source_node_id === taskNode.id && edge.kind === "child")
+    .map((edge) => nodesById.get(edge.target_node_id))
+    .filter((node): node is DocumentCanvasNode => !!node)
+    .map((node) => {
+      const entity = node.entity_type === "thought" ? thoughtsById.get(node.entity_id) : outputsById.get(node.entity_id);
+      if (!entity) return null;
+      return {
+        sortTime: entity.created_at,
+        time: new Date(entity.created_at).toLocaleString("zh-CN"),
+        kind: node.entity_type === "thought" ? "想法" : "AI 产出",
+        text: node.entity_type === "thought" ? (entity as DocumentThought).content || "（空）" : (entity as DocumentOutput).content || "（空）",
+      };
+    })
+    .filter((item): item is { sortTime: string; time: string; kind: string; text: string } => !!item)
+    .sort((a, b) => a.sortTime.localeCompare(b.sortTime))
+    .map(({ time, kind, text }) => ({ time, kind, text }));
+}
+
 export async function exportTaskMarkdown(taskId: string): Promise<string | null> {
-  const snap = await loadGraph();
-  const task = snap.tasks.find((t) => t.id === taskId);
+  const document = await loadDocument();
+  const task = document.tasks.find((item) => item.id === taskId);
   if (!task) return null;
-  const taskNode = snap.nodes.find((n) => n.kind === "task" && n.ref_id === taskId);
-  const kids = taskNode
-    ? snap.edges
-        .filter((e) => e.source_id === taskNode.id && e.kind === "child")
-        .map((e) => snap.nodes.find((n) => n.id === e.target_id))
-        .filter((n): n is NonNullable<typeof n> => !!n)
-    : [];
-
-  const kindLabel = (k: string) =>
-    k === "thought" ? "想法" : k === "ai" ? "AI 产出" : k;
-
-  const items = kids
-    .slice()
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .map((n) => ({
-      time: new Date(n.created_at).toLocaleString("zh-CN"),
-      kind: kindLabel(n.kind),
-      text: n.text || "（空）",
-    }));
-
+  const taskNode = document.canvas_nodes.find(
+    (node) => node.entity_type === "task" && node.entity_id === taskId,
+  );
   const md = buildTimelineSummary({
     taskTitle: task.title,
     taskGoal: task.goal,
-    items,
+    items: markdownItems(document, taskNode),
   });
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   downloadFile(`念头-${task.title}-${stamp}.md`, md, "text/markdown");
@@ -47,84 +58,47 @@ export async function exportTaskMarkdown(taskId: string): Promise<string | null>
 }
 
 export async function exportGraphJson(): Promise<void> {
-  const snap = await loadGraph();
-  const payload = {
-    format: "qpm-thoughtline-graph",
-    version: 1,
-    exported_at: new Date().toISOString(),
-    ...snap,
-  };
+  const document = await loadDocument();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-  downloadFile(`qpm-thoughtline-backup-${stamp}.json`, JSON.stringify(payload, null, 2), "application/json");
-  const { markExported } = await import("./store");
+  downloadFile(
+    `qpm-thoughtline-document-${stamp}.json`,
+    JSON.stringify(document, null, 2),
+    "application/json",
+  );
   markExported();
 }
 
-export function parseGraphJson(raw: string): GraphSnapshot | null {
+export function parseDocumentJson(raw: string): ThoughtlineDocument | null {
   try {
-    const data = JSON.parse(raw) as Partial<GraphSnapshot> & { format?: string };
-    const supportedFormats = new Set(["qpm-thoughtline-graph", "qpm-box-graph"]);
-    if (
-      !data ||
-      (data.format !== undefined && !supportedFormats.has(data.format)) ||
-      !Array.isArray(data.tasks) ||
-      !Array.isArray(data.nodes) ||
-      !Array.isArray(data.edges)
-    ) {
-      return null;
-    }
-    return {
-      tasks: data.tasks as Task[],
-      nodes: data.nodes,
-      edges: data.edges,
-    };
+    return validateDocument(JSON.parse(raw) as unknown);
   } catch {
     return null;
   }
 }
 
-/** Import: merge by id, newer updated_at wins for tasks/nodes */
-export async function importGraphJson(raw: string): Promise<{ tasks: number; nodes: number; edges: number } | null> {
-  const incoming = parseGraphJson(raw);
-  if (!incoming) return null;
-  const { insertTask, insertNode, insertEdge, loadGraph: lg } = await import("./store");
-  const current = await lg();
-  const taskMap = new Map(current.tasks.map((t) => [t.id, t]));
-  const nodeMap = new Map(current.nodes.map((n) => [n.id, n]));
-  const edgeMap = new Map(current.edges.map((e) => [e.id, e]));
-
-  for (const t of incoming.tasks) {
-    const old = taskMap.get(t.id);
-    if (!old || (t.updated_at || "") >= (old.updated_at || "")) {
-      await insertTask({
-        id: t.id,
-        title: t.title,
-        goal: t.goal,
-        status: t.status,
-        source: t.source,
-        meta: t.meta ?? {},
-        created_at: t.created_at,
-        updated_at: t.updated_at,
-      });
-    }
-  }
-  for (const n of incoming.nodes) {
-    const old = nodeMap.get(n.id);
-    if (!old || (n.updated_at || "") >= (old.updated_at || "")) {
-      await insertNode({ ...n, collapsed: !!n.collapsed }, n.text);
-    }
-  }
-  for (const e of incoming.edges) {
-    if (!edgeMap.has(e.id)) await insertEdge(e);
-  }
-
+export async function importGraphJson(raw: string): Promise<{
+  document_id: string;
+  revision: number;
+  tasks: number;
+  thoughts: number;
+  outputs: number;
+  canvas_nodes: number;
+  edges: number;
+} | null> {
+  const document = parseDocumentJson(raw);
+  if (!document) return null;
+  await replaceDocument(document);
   return {
-    tasks: incoming.tasks.length,
-    nodes: incoming.nodes.length,
-    edges: incoming.edges.length,
+    document_id: document.document_id,
+    revision: document.revision,
+    tasks: document.tasks.length,
+    thoughts: document.thoughts.length,
+    outputs: document.outputs.length,
+    canvas_nodes: document.canvas_nodes.length,
+    edges: document.edges.length,
   };
 }
 
 export function dataDirHint(): string {
-  return "浏览器 localStorage（本地优先，清除浏览器数据会丢失，请定期导出备份）";
+  return "浏览器 localStorage（canonical document，本地优先；云端备份可直接使用同一 JSON）";
 }
